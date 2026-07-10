@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box, Typography, Card, Stack, TextField, InputAdornment, Button, Chip,
   Avatar, MenuItem,Dialog, DialogTitle, DialogContent, DialogActions,IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText,
+
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
@@ -22,11 +27,26 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { members as initialMembers } from '../data/mockData';
+import { Axios } from '../Api/Api';
+import * as Yup from "yup";
+import { useFormik } from 'formik';
+
+const validationSchema = Yup.object({
+  name: Yup.string()
+    .required("Le nom est obligatoire"),
+
+  phone: Yup.string()
+    .matches(/^[0-9]{8}$/, "Le numéro doit contenir 8 chiffres")
+    .required("Le numéro est obligatoire"),
+
+  category_id: Yup.string()
+    .required("Veuillez sélectionner une catégorie"),
+});
 
 const statusColor = {
-  Actif: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
-  Inactif: { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
-  Suspendu: { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' },
+  actif: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
+  inactif: { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
+  suspendu: { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' },
 };
 
 const planColor = {
@@ -60,11 +80,48 @@ const colorOptions = ['#D4AF37', '#EF5A6F', '#5AA9E6', '#3ED598', '#F5B85D', '#8
 export default function Members() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Tous');
+  const [users, setUsers] = useState([]);
   const [open,setOpen] = useState(false)
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
+  const [category, setCategory] = useState([]);
 
+  useEffect(()=>{
+    const data = async () => {
+      try{
+       const [resUser, resCategory] = await Promise.all([
+          Axios.get("/user/membre"),
+          Axios.get("/category"),
+        ]);
+        setUsers(resUser.data.users);
+        setCategory(resCategory.data.categories);
+      }catch{
+        console.error("error")
+      }
+    }
+    data()
+  },[open])
+
+const formik = useFormik({
+  initialValues:{
+    name:"",
+    phone:"",
+    category_id:null
+  },
+  validationSchema,
+  onSubmit: async (values) => {
+    try{
+      await Axios.post("/user/member",values);
+      setOpen(false)
+      setToast({ open: true, message: 'Catégorie mise à jour avec succès.', severity: 'success' });
+
+    }catch{
+      console.error("error")
+    }
+
+  }
+})
   
 
 
@@ -101,11 +158,9 @@ export default function Members() {
     }
     setOpen(false);
   };
-
-  const filtered = initialMembers.filter((m) => {
-    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'Tous' || m.category === filter;
+  const filtered = users && users.filter((m) => {
+    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === 'Tous' || m?.subscription?.categorySubscription?.name === filter;
     return matchSearch && matchFilter;
   });
 
@@ -125,18 +180,11 @@ export default function Members() {
       ),
     },
     { field: 'phone', headerName: 'Téléphone', flex: 1, minWidth: 150 },
-    { field: 'category', headerName: 'Catégorie', flex: 0.9, minWidth: 130 },
     {
-      field: 'plan', headerName: 'Abonnement', flex: 0.8, minWidth: 120,
-      renderCell: (params) => (
-        <Chip
-          label={params.value}
-          size="small"
-          sx={{ bgcolor: `${planColor[params.value]}22`, color: planColor[params.value], fontWeight: 700 }}
-        />
-      ),
-    },
-    { field: 'joined', headerName: "Date d'inscription", flex: 0.9, minWidth: 140 },
+  field: "category", headerName: "Catégorie", flex: 0.9, minWidth: 130, valueGetter: (value, row) => row.subscription?.categorySubscription?.name || "",},
+    { field: 'createdAt', headerName: "Date d'inscription", flex: 0.9, minWidth: 140,valueFormatter: (value) => {
+        return new Date(value).toLocaleDateString("fr-FR");
+      }, },
     {
       field: 'status', headerName: 'Statut', flex: 0.8, minWidth: 120,
       renderCell: (params) => (
@@ -144,12 +192,14 @@ export default function Members() {
           label={params.value}
           size="small"
           sx={{ bgcolor: statusColor[params.value].bg, color: statusColor[params.value].color, fontWeight: 700 }}
+          
         />
       ),
     },
   ];
 
-  const categories = ['Tous', ...new Set(initialMembers.map((m) => m.category))];
+
+  const categories = ['Tous', ...new Set(category.map((m) => m.name))];
 
   return (
     <Box>
@@ -157,6 +207,7 @@ export default function Members() {
         
         
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
+        <form onSubmit={formik.handleSubmit}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {editingId ? 'Modifier la membre' : 'Nouvelle membre'}
           <IconButton size="small" onClick={handleClose}>
@@ -167,20 +218,22 @@ export default function Members() {
           <Stack spacing={2.5} sx={{ mt: 0.5 }}>
             <TextField
               label="Nom et pérnom"
-              value={form.name}
-              onChange={handleChange('name')}
-              error={Boolean(errors.name)}
-              helperText={errors.name}
+              value={formik.values.name}
+              name='name'
+              onChange={formik.handleChange}
+              error={formik.touched.name && Boolean(formik.errors.name)}
+              helperText={formik.touched.name && formik.errors.name}
               fullWidth
               autoFocus
             />
             <TextField
               label="numéro de télèphone"
-              type="number"
-              value={form.price}
-              onChange={handleChange('price')}
-              error={Boolean(errors.price)}
-              helperText={errors.price}
+              type="text"
+              value={formik.values.phone}
+              name='phone'
+              onChange={formik.handleChange}
+              error={formik.touched.phone && Boolean(formik.errors.phone)}
+              helperText={formik.touched.phone && formik.errors.phone}
               fullWidth
               InputProps={{
                 startAdornment: (
@@ -191,15 +244,33 @@ export default function Members() {
                 endAdornment: <InputAdornment position="end">DT / mois</InputAdornment>,
               }}
             />
-       
+       <FormControl fullWidth error={formik.touched.category_id && Boolean(formik.errors.category_id)}>
+  <InputLabel>Catégorie</InputLabel>
+
+  <Select
+    value={formik.values.category_id}
+    name='category_id'
+    label="Catégorie"
+    onChange={formik.handleChange}
+  >
+    {category.map((category) => (
+      <MenuItem key={category.id} value={category.id}>
+        {category.name} - {category.price} DT/mois
+      </MenuItem>
+    ))}
+  </Select>
+
+  <FormHelperText>{formik.touched.category_id && formik.errors.category_id}</FormHelperText>
+</FormControl>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2.5 }}>
           <Button onClick={handleClose} color="inherit">Annuler</Button>
-          <Button onClick={handleSubmit} variant="contained">
+          <Button type='submit' variant="contained">
             {editingId ? 'Enregistrer' : 'Ajouter'}
           </Button>
         </DialogActions>
+        </form>
       </Dialog>
         
         

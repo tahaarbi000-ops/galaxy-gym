@@ -10,8 +10,9 @@ const Subscription = sequelize.define("subscriptions",{
         primaryKey:true,
     },
     date:{
-        type:DataTypes.STRING,
+        type:DataTypes.DATEONLY,
         allowNull:false,
+        defaultValue: DataTypes.NOW,
     },
     amount:{
         type:DataTypes.FLOAT,
@@ -32,7 +33,7 @@ const Subscription = sequelize.define("subscriptions",{
     },
     category_id:{
         type:DataTypes.BIGINT,
-        allowNull:false,
+        allowNull:true,
         references:{
             model:Category,
             key:"id",

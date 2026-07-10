@@ -5,19 +5,27 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if(!localStorage.getItem("auth")) return
-    const userData = async () => {
-      try{
-        const response = await Axios.get("/auth/profile");
-        setUser(response.data.user)
-      }catch{
-        localStorage.removeItem('auth');
+useEffect(() => {
+  const userData = async () => {
+    try {
+      if (!localStorage.getItem("auth")) {
+        setLoading(false);
+        return;
       }
+
+      const response = await Axios.get("/auth/profile");
+      setUser(response.data.user);
+    } catch (error) {
+      localStorage.removeItem("auth");
+    } finally {
+      setLoading(false);
     }
-    userData()
-  }, []);
+  };
+
+  userData();
+}, []);
 
   const login = (email, password) => {
     // Authentification simulée — à remplacer par un vrai appel API
@@ -38,7 +46,7 @@ export function AuthProvider({ children }) {
     window.localStorage.removeItem("auth")
   }
 
-  const value = useMemo(() => ({ user, login, logout }), [user]);
+  const value = useMemo(() => ({ user, login, logout,loading }), [user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -5,6 +5,7 @@ const sequelize = require("./config/db");
 const app = express();
 const appStart = require("./app");
 const AuthenticateAPI = require("./middlewares/AuthenticateAPI")
+require("./models/index")
 
 
 const port = process.env.PORT || 5000;
