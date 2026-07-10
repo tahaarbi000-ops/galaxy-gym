@@ -10,29 +10,59 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import FitnessCenterRoundedIcon from '@mui/icons-material/FitnessCenterRounded';
 import { useAuth } from '../context/AuthContext';
+import * as Yup from "yup" 
+import { useFormik } from 'formik';
+import axios from 'axios';
+const validationSchema = Yup.object().shape({
+  email:Yup.string().required("email est obligatoire").matches(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,"Email invalide"),
+  password:Yup.string().required("mot de passe est obligatoire")
+})
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   const from = location.state?.from?.pathname || '/';
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
-    if (!email || !password) {
+  const formik = useFormik({
+    initialValues:{
+      email:"",
+      password:""
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      try{
+        setLoading(true)
+        setError("")
+        const response = await axios.post("http://localhost:5000/api/v1/auth/login",values)
+        const token = response.data.token;
+        window.localStorage.setItem("auth",token)
+        window.location.reload()
+
+      }catch{
       setError('Veuillez renseigner votre email et votre mot de passe.');
-      return;
+
+      }finally{
+        setLoading(false)
+      }
     }
-    const ok = login(email, password);
-    if (ok) navigate(from, { replace: true });
-    else setError('Identifiants invalides.');
-  };
+  })
+
+
+  // const handleSubmit = (e) => {
+  //   e.preventDefault();
+  //   setError('');
+  //   if (!email || !password) {
+  //     return;
+  //   }
+  //   const ok = login(email, password);
+    // if (ok) navigate(from, { replace: true });
+  //   else setError('Identifiants invalides.');
+  // };
 
   return (
     <Grid container sx={{ minHeight: '100vh' }}>
@@ -94,7 +124,7 @@ export default function Login() {
       >
         <Paper
           component="form"
-          onSubmit={handleSubmit}
+          onSubmit={formik.handleSubmit}
           elevation={0}
           sx={{
             width: '100%', maxWidth: 420, p: { xs: 3, sm: 5 }, borderRadius: 4,
@@ -124,11 +154,14 @@ export default function Login() {
 
           <Stack spacing={2.5}>
             <TextField
+              error={formik.touched.email && formik.errors.email}
+              helperText={formik.touched.email && formik.errors.email}
               fullWidth
               label="Adresse email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={formik.values.email}
+              name='email'
+              onChange={formik.handleChange}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -139,10 +172,13 @@ export default function Login() {
             />
             <TextField
               fullWidth
+              error={formik.touched.password && formik.errors.password}
+              helperText={formik.touched.password && formik.errors.password}
               label="Mot de passe"
               type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formik.values.password}
+              onChange={formik.handleChange}
+              name='password'
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -169,7 +205,7 @@ export default function Login() {
               </Typography>
             </Box>
 
-            <Button type="submit" variant="contained" size="large" fullWidth sx={{ py: 1.4, fontSize: 16 }}>
+            <Button type="submit" loading={loading} variant="contained" size="large" fullWidth sx={{ py: 1.4, fontSize: 16 }}>
               Se connecter
             </Button>
 

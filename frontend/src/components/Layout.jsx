@@ -166,7 +166,7 @@ export default function Layout() {
 
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ p: 0.3 }}>
               <Avatar sx={{ bgcolor: 'primary.main', color: '#0B0B0F', fontWeight: 700 }}>
-                {user?.name?.[0] || 'A'}
+                {user?.name?.[0].toUpperCase() || 'A'}
               </Avatar>
             </IconButton>
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>

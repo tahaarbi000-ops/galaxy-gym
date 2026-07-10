@@ -1,17 +1,23 @@
 import { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { Axios } from '../Api/Api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('gge_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    if (user) localStorage.setItem('gge_user', JSON.stringify(user));
-    else localStorage.removeItem('gge_user');
-  }, [user]);
+    if(!localStorage.getItem("auth")) return
+    const userData = async () => {
+      try{
+        const response = await Axios.get("/auth/profile");
+        setUser(response.data.user)
+      }catch{
+        localStorage.removeItem('auth');
+      }
+    }
+    userData()
+  }, []);
 
   const login = (email, password) => {
     // Authentification simulée — à remplacer par un vrai appel API
@@ -27,7 +33,10 @@ export function AuthProvider({ children }) {
     return false;
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    setUser(null);
+    window.localStorage.removeItem("auth")
+  }
 
   const value = useMemo(() => ({ user, login, logout }), [user]);
 

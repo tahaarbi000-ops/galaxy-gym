@@ -11,6 +11,7 @@ import Trainers from './pages/Trainers';
 import Secretary from './pages/Secretary';
 import Categories from './pages/Categories';
 import Subscriptions from './pages/Subscriptions';
+import ProtectedLogin from './components/ProtectedLogin';
 
 export default function App() {
   return (
@@ -18,7 +19,7 @@ export default function App() {
       <CssBaseline />
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={ <ProtectedLogin> <Login /> </ProtectedLogin>} />
           <Route
             element={
               <ProtectedRoute>
