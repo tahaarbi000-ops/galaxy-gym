@@ -2,6 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/db");
 const User = require("./User");
 const Category = require("./Category");
+const Member = require("./Member");
 
 const Subscription = sequelize.define("subscriptions",{
     id:{
@@ -27,17 +28,10 @@ const Subscription = sequelize.define("subscriptions",{
         type:DataTypes.BIGINT,
         allowNull:false,
         references:{
-            model:User,
+            model:Member,
             key:"id",
         }
     },
-    category_id:{
-        type:DataTypes.BIGINT,
-        allowNull:true,
-        references:{
-            model:Category,
-            key:"id",
-        }
-    },
+    
 })
 module.exports = Subscription;

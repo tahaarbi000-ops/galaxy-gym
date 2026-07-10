@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box, Typography, Card, Stack, Button, Chip, Table, TableHead, TableRow, TableCell,
   TableBody, TableContainer, Avatar, IconButton, Dialog, DialogTitle, DialogContent,
@@ -11,61 +11,75 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
-import { subscribers as initialSubscribers } from '../data/mockData';
+import { Axios } from '../Api/Api';
 
 const statusColor = {
-  Payé: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
-  'Non payé': { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' },
-  'En retard': { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
+  payé: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
+  'non payé': { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' },
+  'en retard': { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
 };
 
-const planPrice = { Standard: 90, Premium: 150, VIP: 250 };
-
-// Enrichit les abonnés avec un statut de paiement + historique simulé
-const buildMembers = () =>
-  initialSubscribers.map((s, i) => ({
-    ...s,
-    amount: planPrice[s.plan] || 100,
-    paymentStatus: i % 3 === 0 ? 'Non payé' : i % 5 === 0 ? 'En retard' : 'Payé',
-    history: [
-      { id: 1, date: '2024-04-05', amount: planPrice[s.plan] || 100, method: 'Espèces' },
-      { id: 2, date: '2024-05-05', amount: planPrice[s.plan] || 100, method: 'Carte bancaire' },
-      { id: 3, date: '2024-06-05', amount: planPrice[s.plan] || 100, method: 'Virement' },
-    ],
-  }));
+const isCurrentMonth = (dateStr) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+};
 
 export default function Subscriptions() {
-  const [members, setMembers] = useState(buildMembers());
+  const [members, setMembers] = useState();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Tous');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
-  const filtered = members.filter((m) => {
-    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'Tous' || m.paymentStatus === filter;
-    return matchSearch && matchFilter;
-  });
+  useEffect(() => {
+    const subscriptionData = async () => {
+      try {
+        const response = await Axios.get('/subscription');
+        setMembers(response.data.subscriptions);
+      } catch {
+        console.error('error');
+      }
+    };
+    subscriptionData();
+  }, []);
 
-  const handlePay = (id) => {
-    const today = new Date().toISOString().slice(0, 10);
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? {
-              ...m,
-              paymentStatus: 'Payé',
-              history: [{ id: Date.now(), date: today, amount: m.amount, method: 'Espèces' }, ...m.history],
-            }
-          : m
-      )
-    );
-    setToast({ open: true, message: 'Paiement enregistré avec succès.', severity: 'success' });
+  const filtered =
+    members &&
+    members.filter((m) => {
+      const matchSearch = m?.member?.name?.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = filter === 'Tous' || m.status === filter.toLowerCase();
+      return matchSearch && matchFilter;
+    });
+
+  const handlePay = async (m) => {
+    try {
+      // Adjust this endpoint/payload to match your actual "pay" route
+      await Axios.post(`/subscription/pay/${m.member.id}`, {
+        amount: m.amount,
+        method: 'Espèces',
+      });
+
+      const response = await Axios.get('/subscription');
+      setMembers(response.data.subscriptions);
+
+      setToast({ open: true, message: 'Paiement enregistré avec succès.', severity: 'success' });
+    } catch (err) {
+      console.error(err);
+      setToast({ open: true, message: "Erreur lors de l'enregistrement du paiement.", severity: 'error' });
+    }
   };
 
-  const handleOpenHistory = (member) => {
-    setSelectedMember(member);
+  const handleOpenHistory = async (memberId, memberName) => {
+    try {
+      const response = await Axios.get(`/subscription/history/${memberId}`);
+      setSelectedMember({ name: memberName, records: response.data.subscriptions });
+    } catch (err) {
+      console.error('error');
+      setSelectedMember({ name: memberName, records: [] });
+    }
     setHistoryOpen(true);
   };
 
@@ -120,55 +134,68 @@ export default function Subscriptions() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.map((m) => (
-                <TableRow key={m.id} hover>
-                  <TableCell>
-                    <Stack direction="row" alignItems="center" spacing={1.5}>
-                      <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
-                        {m.name[0]}
-                      </Avatar>
-                      <Typography variant="body2" fontWeight={600}>{m.name}</Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">{m.plan}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={700}>{m.amount} DT</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">{m.end}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={m.paymentStatus}
-                      size="small"
-                      sx={{ bgcolor: statusColor[m.paymentStatus].bg, color: statusColor[m.paymentStatus].color, fontWeight: 700 }}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<PaidRoundedIcon fontSize="small" />}
-                        disabled={m.paymentStatus === 'Payé'}
-                        onClick={() => handlePay(m.id)}
-                      >
-                        Payer
-                      </Button>
-                      <IconButton
-                        size="small"
-                        sx={{ color: 'text.secondary', border: '1px solid rgba(212,175,55,0.2)' }}
-                        onClick={() => handleOpenHistory(m)}
-                      >
-                        <HistoryRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filtered.length === 0 && (
+              {members && filtered.map((m) => {
+                const current = isCurrentMonth(m.date);
+                return (
+                  <TableRow key={m.id} hover>
+                    <TableCell>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
+                          {m?.member?.name?.[0]?.toUpperCase()}
+                        </Avatar>
+                        <Typography variant="body2" fontWeight={600}>{m?.member?.name}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{m?.member?.category?.name}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={700}>{m.amount} DT</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{new Date(m?.date).toLocaleDateString()}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <Chip
+                          label={m.status}
+                          size="small"
+                          sx={{ bgcolor: statusColor[m.status]?.bg, color: statusColor[m.status]?.color, fontWeight: 700 }}
+                        />
+                        {!current && (
+                          <Chip
+                            label="Mois précédent"
+                            size="small"
+                            variant="outlined"
+                            sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'text.secondary', fontSize: 11 }}
+                          />
+                        )}
+                      </Stack>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          startIcon={<PaidRoundedIcon fontSize="small" />}
+                          disabled={m.status === 'payé' && current}
+                          onClick={() => handlePay(m)}
+                        >
+                          Payer
+                        </Button>
+                        <IconButton
+                          size="small"
+                          sx={{ color: 'text.secondary', border: '1px solid rgba(212,175,55,0.2)' }}
+                          onClick={() => handleOpenHistory(m.member.id, m.member.name)}
+                        >
+                          <HistoryRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {filtered && filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
                     <Typography variant="body2" color="text.secondary">Aucun membre trouvé.</Typography>
@@ -193,21 +220,24 @@ export default function Subscriptions() {
         </DialogTitle>
         <DialogContent dividers>
           <List>
-            {selectedMember?.history.map((h, i) => (
+            {selectedMember?.records?.map((h, i) => (
               <Box key={h.id}>
                 <ListItem disableGutters>
                   <ListItemIcon sx={{ minWidth: 36 }}>
-                    <CheckCircleRoundedIcon fontSize="small" sx={{ color: 'success.main' }} />
+                    <CheckCircleRoundedIcon
+                      fontSize="small"
+                      sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
+                    />
                   </ListItemIcon>
                   <ListItemText
-                    primary={`${h.amount} DT — ${h.method}`}
-                    secondary={h.date}
+                    primary={`${h.amount} DT — ${h.status}`}
+                    secondary={new Date(h.date).toLocaleDateString()}
                   />
                 </ListItem>
-                {i < selectedMember.history.length - 1 && <Divider component="li" />}
+                {i < selectedMember.records.length - 1 && <Divider component="li" />}
               </Box>
             ))}
-            {(!selectedMember || selectedMember.history.length === 0) && (
+            {(!selectedMember?.records || selectedMember.records.length === 0) && (
               <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
                 Aucun paiement enregistré.
               </Typography>

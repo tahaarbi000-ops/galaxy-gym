@@ -17,20 +17,24 @@ const User = sequelize.define("users",{
     },
     email:{
         type:DataTypes.STRING,
-        allowNull:true,
+        allowNull:false,
     },
     password:{
+        type:DataTypes.STRING,
+        allowNull:false,
+    },
+    shift:{
         type:DataTypes.STRING,
         allowNull:true,
     },
     role:{
-         type:DataTypes.ENUM("admin","membre","entraineurs","secrétariat"),
+         type:DataTypes.ENUM("admin","secrétariat"),
         allowNull:false,
     },
     status:{
-         type:DataTypes.ENUM("actif","inactif"),
+         type:DataTypes.ENUM("actif","congé"),
         allowNull:true,
         defaultValue:"actif"
-    }
+    },
 })
 module.exports = User;

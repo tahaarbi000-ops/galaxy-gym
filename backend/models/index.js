@@ -1,25 +1,25 @@
 const Category = require("./Category");
+const Member = require("./Member");
 const Subscription = require("./Subscription");
-const User = require("./User");
 
-User.hasOne(Subscription,{
+Member.hasOne(Subscription,{
     foreignKey:"member_id",
     as:"subscription"
 })
 
-Subscription.belongsTo(User,{
+Subscription.belongsTo(Member,{
     foreignKey:"member_id",
-    as:"userSubscription"
+    as:"member"
 })
 
-Category.hasOne(Subscription,{
+Category.hasOne(Member,{
     foreignKey:"category_id",
-    as:"subscriptionCategory"
+    as:"memberCategory"
 })
 
-Subscription.belongsTo(Category,{
+Member.belongsTo(Category,{
     foreignKey:"category_id",
-    as:"categorySubscription"
+    as:"category"
 })
 
-module.exports = {User,Category,Subscription}
+module.exports = {Category,Subscription,Member}

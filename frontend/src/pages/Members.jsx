@@ -91,7 +91,7 @@ export default function Members() {
     const data = async () => {
       try{
        const [resUser, resCategory] = await Promise.all([
-          Axios.get("/user/membre"),
+          Axios.get("/user/member"),
           Axios.get("/category"),
         ]);
         setUsers(resUser.data.users);
@@ -181,7 +181,7 @@ const formik = useFormik({
     },
     { field: 'phone', headerName: 'Téléphone', flex: 1, minWidth: 150 },
     {
-  field: "category", headerName: "Catégorie", flex: 0.9, minWidth: 130, valueGetter: (value, row) => row.subscription?.categorySubscription?.name || "",},
+  field: "category", headerName: "Catégorie", flex: 0.9, minWidth: 130, valueGetter: (value, row) => row.category?.name || "",},
     { field: 'createdAt', headerName: "Date d'inscription", flex: 0.9, minWidth: 140,valueFormatter: (value) => {
         return new Date(value).toLocaleDateString("fr-FR");
       }, },

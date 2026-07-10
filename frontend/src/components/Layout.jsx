@@ -24,7 +24,7 @@ const navItems = [
   { label: "Vue d'ensemble", path: '/', icon: <DashboardRoundedIcon /> },
   { label: 'Membres', path: '/members', icon: <GroupRoundedIcon /> },
   { label: 'Entraîneurs', path: '/trainers', icon: <SportsGymnasticsRoundedIcon /> },
-  { label: 'Secrétariat', path: '/secretary', icon: <BadgeRoundedIcon /> },
+  { label: 'Secrétariat', path: '/secretary', icon: <BadgeRoundedIcon />, adminOnly: true },
   { label: 'Catégories', path: '/categories', icon: <CategoryRoundedIcon /> },
   { label: 'Abonnements', path: '/subscriptions', icon: <CardMembershipRoundedIcon /> },
 ];
@@ -37,6 +37,10 @@ export default function Layout() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   const handleLogout = () => {
     logout();
@@ -73,7 +77,7 @@ export default function Layout() {
       <Divider />
 
       <List sx={{ px: 2, py: 3, flexGrow: 1 }}>
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <ListItemButton
             key={item.path}
             component={NavLink}

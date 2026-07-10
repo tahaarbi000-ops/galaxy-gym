@@ -46,7 +46,7 @@ useEffect(() => {
     window.localStorage.removeItem("auth")
   }
 
-  const value = useMemo(() => ({ user, login, logout,loading }), [user]);
+  const value = useMemo(() => ({ user, login, logout,loading }), [user,loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

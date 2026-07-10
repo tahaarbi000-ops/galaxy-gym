@@ -30,7 +30,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/members" element={<Members />} />
             <Route path="/trainers" element={<Trainers />} />
-            <Route path="/secretary" element={<Secretary />} />
+            <Route path="/secretary" element={<ProtectedRoute adminOnly={true}> <Secretary /> </ProtectedRoute> } />
             <Route path="/categories" element={<Categories />} />
             <Route path="/subscriptions" element={<Subscriptions />} />
           </Route>
