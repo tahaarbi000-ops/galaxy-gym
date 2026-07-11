@@ -3,7 +3,7 @@ import {
   Box, Typography, Card, Stack, Button, Table, TableHead, TableRow, TableCell,
   TableBody, Avatar, Chip, TableContainer, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, TextField, InputAdornment,
-  FormControl, InputLabel, Select, MenuItem, FormHelperText,
+  FormControl, InputLabel, Select, MenuItem, FormHelperText, Alert,
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -14,7 +14,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
-import { secretaries as initialSecretaries } from '../data/mockData';
+import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import { Axios } from '../Api/Api';
 
 const statusColor = {
@@ -22,37 +22,42 @@ const statusColor = {
   congé: { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
 };
 
-const validationSchema = Yup.object({
-  name: Yup.string().trim().required('Le nom est requis'),
-  shift: Yup.string().trim().required('Le créneau est requis'),
-  phone: Yup.string()
-    .trim()
-    .matches(/^[0-9+\s]{6,15}$/, 'Numéro invalide')
-    .required('Le numéro de téléphone est requis'),
-  email: Yup.string().trim().email('Email invalide').required("L'email est requis"),
-  password: Yup.string().required('Le mot de passe est requis'),
-  status: Yup.string().oneOf(['actif', 'congé']).required('Le statut est requis'),
-});
+const getValidationSchema = (isEditing) =>
+  Yup.object({
+    name: Yup.string().trim().required('Le nom est requis'),
+    shift: Yup.string().trim().required('Le créneau est requis'),
+    phone: Yup.string()
+      .trim()
+      .matches(/^[0-9+\s]{6,15}$/, 'Numéro invalide')
+      .required('Le numéro de téléphone est requis'),
+    email: Yup.string().trim().email('Email invalide').required("L'email est requis"),
+    password: isEditing
+      ? Yup.string().notRequired()
+      : Yup.string().min(6, '6 caractères minimum').required('Le mot de passe est requis'),
+    status: Yup.string().oneOf(['actif', 'congé']).required('Le statut est requis'),
+  });
 
 export default function Secretary() {
   const [secretaries, setSecretaries] = useState([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState(false);
 
-  const [deleteTarget, setDeleteTarget] = useState(null); // holds the secretary being deleted
-
-  useEffect(()=>{
-    const secretariesData = async ()=>{
-      try{ 
-        const response = await Axios.get("/user/secretary");
-        setSecretaries(response.data.users)
-      }catch{
-        console.error("error")
-      }
+  const fetchSecretaries = async () => {
+    try {
+      const response = await Axios.get('/user/secretary');
+      setSecretaries(response.data.users);
+    } catch {
+      console.error('error fetching secretaries');
     }
-    secretariesData()
-  },[open])
+  };
+
+  useEffect(() => {
+    fetchSecretaries();
+  }, []);
 
   const formik = useFormik({
     initialValues: {
@@ -63,40 +68,55 @@ export default function Secretary() {
       password: '',
       status: 'actif',
     },
-    validationSchema,
+    validationSchema: getValidationSchema(Boolean(editingId)),
+    enableReinitialize: true,
     onSubmit: async (values, { resetForm }) => {
-      if (editingId) {
-        setSecretaries((prev) =>
-          prev.map((s) => (s.id === editingId ? { ...s, ...values } : s))
-        );
-      } else {
-        try{
-            setError(false)
-            await Axios.post("/user/secretary",values)
-        }catch{
-            setError(true)
+      setError(false);
+      setErrorMessage('');
+      try {
+        if (editingId) {
+          const payload = { ...values };
+          if (!payload.password) delete payload.password;
+
+          await Axios.put(`/user/secretary/${editingId}`, payload);
+        } else {
+          await Axios.post('/user/secretary', values);
         }
+
+        await fetchSecretaries();
+        resetForm();
+        setOpen(false);
+        setEditingId(null);
+      } catch (err) {
+        setError(true);
+        setErrorMessage(
+          err?.response?.data?.message ||
+          err?.response?.data?.errors?.[0] ||
+          "Une erreur est survenue"
+        );
       }
-      resetForm();
-      setOpen(false);
-      setEditingId(null);
     },
   });
 
   const handleOpenAdd = () => {
     setEditingId(null);
+    setError(false);
+    setErrorMessage('');
     formik.resetForm();
     setOpen(true);
   };
 
   const handleOpenEdit = (secretary) => {
     setEditingId(secretary.id);
+    setError(false);
+    setErrorMessage('');
     formik.setValues({
-      name: secretary.name,
-      shift: secretary.shift,
-      phone: secretary.phone,
-      email: secretary.email,
-      status: secretary.status,
+      name: secretary.name || '',
+      shift: secretary.shift || '',
+      phone: secretary.phone || '',
+      email: secretary.email || '',
+      password: '',
+      status: secretary.status || 'actif',
     });
     setOpen(true);
   };
@@ -104,20 +124,30 @@ export default function Secretary() {
   const handleClose = () => {
     setOpen(false);
     setEditingId(null);
+    setError(false);
+    setErrorMessage('');
     formik.resetForm();
   };
 
   const handleOpenDelete = (secretary) => {
     setDeleteTarget(secretary);
+    setDeleteError(false);
   };
 
   const handleCloseDelete = () => {
     setDeleteTarget(null);
+    setDeleteError(false);
   };
 
-  const handleConfirmDelete = () => {
-    setSecretaries((prev) => prev.filter((s) => s.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  const handleConfirmDelete = async () => {
+    try {
+      await Axios.delete(`/user/secretary/${deleteTarget.id}`);
+      setSecretaries((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeleteError(false);
+    } catch {
+      setDeleteError(true);
+    }
   };
 
   return (
@@ -148,42 +178,52 @@ export default function Secretary() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {secretaries && secretaries.map((s) => (
-                <TableRow key={s.id} hover>
-                  <TableCell>
-                    <Stack direction="row" alignItems="center" spacing={1.5}>
-                      <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
-                        {s.name[0]}
-                      </Avatar>
-                      <Typography variant="body2" fontWeight={600}>{s.name}</Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">{s.shift}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">{s.phone}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">{s.email}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={s.status}
-                      size="small"
-                      sx={{ bgcolor: statusColor[s.status].bg, color: statusColor[s.status].color, fontWeight: 700 }}
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => handleOpenEdit(s)}>
-                      <EditRoundedIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" sx={{ color: 'error.main' }} onClick={() => handleOpenDelete(s)}>
-                      <DeleteOutlineRoundedIcon fontSize="small" />
-                    </IconButton>
+              {secretaries && secretaries.length > 0 ? (
+                secretaries.map((s) => (
+                  <TableRow key={s.id} hover>
+                    <TableCell>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
+                          {s.name?.[0]?.toUpperCase()}
+                        </Avatar>
+                        <Typography variant="body2" fontWeight={600}>{s.name}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{s.shift}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{s.phone}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">{s.email}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={s.status}
+                        size="small"
+                        sx={{ bgcolor: statusColor[s.status]?.bg, color: statusColor[s.status]?.color, fontWeight: 700 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => handleOpenEdit(s)}>
+                        <EditRoundedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" sx={{ color: 'error.main' }} onClick={() => handleOpenDelete(s)}>
+                        <DeleteOutlineRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
+                      Aucune secrétaire trouvée
+                    </Typography>
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -200,6 +240,12 @@ export default function Secretary() {
           </DialogTitle>
           <DialogContent dividers>
             <Stack spacing={2.5} sx={{ mt: 0.5 }}>
+              {error && (
+                <Alert severity="error" onClose={() => setError(false)}>
+                  {errorMessage}
+                </Alert>
+              )}
+
               <TextField
                 label="Nom et prénom"
                 value={formik.values.name}
@@ -264,19 +310,23 @@ export default function Secretary() {
                   ),
                 }}
               />
+
               <TextField
-                label="mot de passe"
+                label={editingId ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'}
                 type="password"
                 value={formik.values.password}
                 name="password"
                 onChange={formik.handleChange}
                 error={formik.touched.password && Boolean(formik.errors.password)}
-                helperText={formik.touched.password && formik.errors.password}
+                helperText={
+                  (formik.touched.password && formik.errors.password) ||
+                  (editingId ? 'Laissez vide pour conserver le mot de passe actuel' : '')
+                }
                 fullWidth
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <EmailRoundedIcon fontSize="small" sx={{ color: 'primary.main' }} />
+                      <LockRoundedIcon fontSize="small" sx={{ color: 'primary.main' }} />
                     </InputAdornment>
                   ),
                 }}
@@ -299,7 +349,7 @@ export default function Secretary() {
           </DialogContent>
           <DialogActions sx={{ p: 2.5 }}>
             <Button onClick={handleClose} color="inherit">Annuler</Button>
-            <Button type="submit" variant="contained">
+            <Button type="submit" variant="contained" disabled={formik.isSubmitting}>
               {editingId ? 'Enregistrer' : 'Ajouter'}
             </Button>
           </DialogActions>
@@ -315,6 +365,11 @@ export default function Secretary() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
+          {deleteError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDeleteError(false)}>
+              Impossible de supprimer cette secrétaire.
+            </Alert>
+          )}
           <DialogContentText>
             Êtes-vous sûr de vouloir supprimer{' '}
             <Typography component="span" fontWeight={700} color="text.primary">

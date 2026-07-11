@@ -2,22 +2,20 @@ import { useEffect, useState } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent, Avatar, Stack, Chip, Button, Divider, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputAdornment,
+  FormControl, InputLabel, Select, MenuItem, FormHelperText, Snackbar, Alert,
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
-import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
-import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { trainers as initialTrainers } from '../data/mockData';
 import { Axios } from '../Api/Api';
 
 const validationSchema = Yup.object({
   name: Yup.string().trim().required('Le nom est requis'),
-  specialty: Yup.string().trim().required('La spécialité est requise'),
+  category_id: Yup.string().required('Veuillez sélectionner une spécialité'),
   experience: Yup.string().trim().required("L'expérience est requise"),
   phone: Yup.string()
     .trim()
@@ -25,58 +23,83 @@ const validationSchema = Yup.object({
     .required('Le numéro de téléphone est requis'),
 });
 
+const emptyValues = {
+  name: '',
+  category_id: '',
+  experience: '',
+  phone: '',
+};
+
 export default function Trainers() {
   const [trainers, setTrainers] = useState([]);
+  const [category, setCategory] = useState([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
-  useEffect(()=>{
-    const trainersData = async () => {
-      try{
-       const response = await Axios.get("/user/trainer");
-       setTrainers(response.data.users)
-      }catch{
-        console.error("error")
-      }
+  const fetchData = async () => {
+    try {
+      const [resTrainer, resCategory] = await Promise.all([
+        Axios.get('/user/trainer'),
+        Axios.get('/category'),
+      ]);
+      setTrainers(resTrainer.data.users);
+      setCategory(resCategory.data.categories);
+    } catch {
+      console.error('error fetching trainers/categories');
     }
-    trainersData()
-  },[open])
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const formik = useFormik({
-    initialValues: {
-      name: '',
-      specialty: '',
-      experience: '',
-      phone: '',
-    },
+    initialValues: emptyValues,
     validationSchema,
+    enableReinitialize: true,
     onSubmit: async (values, { resetForm }) => {
-      if (editingId) {
-        setTrainers((prev) =>
-          prev.map((t) => (t.id === editingId ? { ...t, ...values } : t))
-        );
-      } else {
-       await Axios.post("/user/trainer",values)
+      try {
+        if (editingId) {
+          await Axios.put(`/user/trainer/${editingId}`, values);
+          setToast({ open: true, message: 'Entraîneur mis à jour avec succès.', severity: 'success' });
+        } else {
+          await Axios.post('/user/trainer', values);
+          setToast({ open: true, message: 'Nouvel entraîneur ajouté avec succès.', severity: 'success' });
+        }
+
+        await fetchData();
+        resetForm({ values: emptyValues });
+        setOpen(false);
+        setEditingId(null);
+      } catch (err) {
+        setToast({
+          open: true,
+          message:
+            err?.response?.data?.message ||
+            err?.response?.data?.errors?.[0] ||
+            'Une erreur est survenue',
+          severity: 'error',
+        });
       }
-      resetForm();
-      setOpen(false);
-      setEditingId(null);
     },
   });
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    formik.resetForm();
+    formik.resetForm({ values: emptyValues });
     setOpen(true);
   };
 
   const handleOpenEdit = (trainer) => {
     setEditingId(trainer.id);
-    formik.setValues({
-      name: trainer.name,
-      specialty: trainer.specialty,
-      experience: trainer.experience,
-      phone: trainer.phone,
+    formik.resetForm({
+      values: {
+        name: trainer.name || '',
+        category_id: trainer.category?.id || trainer.category_id || '',
+        experience: trainer.experience || '',
+        phone: trainer.phone || '',
+      },
     });
     setOpen(true);
   };
@@ -84,7 +107,7 @@ export default function Trainers() {
   const handleClose = () => {
     setOpen(false);
     setEditingId(null);
-    formik.resetForm();
+    formik.resetForm({ values: emptyValues });
   };
 
   return (
@@ -119,7 +142,7 @@ export default function Trainers() {
                   <Box>
                     <Typography variant="subtitle1" fontWeight={700}>{t.name}</Typography>
                     <Chip
-                      label={t.specialty}
+                      label={t.category?.name || 'Non assigné'}
                       size="small"
                       sx={{ mt: 0.5, bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 600 }}
                     />
@@ -135,7 +158,7 @@ export default function Trainers() {
                       <Typography variant="body2" color="text.secondary">Expérience: </Typography>
                     </Stack>
                     <Typography variant="body2" fontWeight={600}>{t.experience}</Typography>
-                  </Stack>                
+                  </Stack>
                 </Stack>
 
                 <Divider sx={{ my: 2.5 }} />
@@ -173,25 +196,29 @@ export default function Trainers() {
                 error={formik.touched.name && Boolean(formik.errors.name)}
                 helperText={formik.touched.name && formik.errors.name}
                 fullWidth
-                autoFocus
               />
 
-              <TextField
-                label="Spécialité"
-                value={formik.values.specialty}
-                name="specialty"
-                onChange={formik.handleChange}
-                error={formik.touched.specialty && Boolean(formik.errors.specialty)}
-                helperText={formik.touched.specialty && formik.errors.specialty}
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
+              <FormControl fullWidth error={formik.touched.category_id && Boolean(formik.errors.category_id)}>
+                <InputLabel>Spécialité</InputLabel>
+                <Select
+                  value={formik.values.category_id}
+                  name="category_id"
+                  label="Spécialité"
+                  onChange={formik.handleChange}
+                  startAdornment={
+                    <InputAdornment position="start" sx={{ ml: 1 }}>
                       <WorkspacePremiumRoundedIcon fontSize="small" sx={{ color: 'primary.main' }} />
                     </InputAdornment>
-                  ),
-                }}
-              />
+                  }
+                >
+                  {category.map((c) => (
+                    <MenuItem key={c.id} value={c.id}>
+                      {c.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>{formik.touched.category_id && formik.errors.category_id}</FormHelperText>
+              </FormControl>
 
               <TextField
                 label="Expérience"
@@ -232,12 +259,28 @@ export default function Trainers() {
           </DialogContent>
           <DialogActions sx={{ p: 2.5 }}>
             <Button onClick={handleClose} color="inherit">Annuler</Button>
-            <Button type="submit" variant="contained">
+            <Button type="submit" variant="contained" disabled={formik.isSubmitting}>
               {editingId ? 'Enregistrer' : 'Ajouter'}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
+
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setToast((t) => ({ ...t, open: false }))}
+          severity={toast.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

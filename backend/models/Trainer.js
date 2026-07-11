@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/db");
+const Category = require("./Category");
 
 const Trainer = sequelize.define("trainers",{
     id:{
@@ -16,8 +17,12 @@ const Trainer = sequelize.define("trainers",{
         allowNull:false,
     },
     specialty:{
-         type:DataTypes.STRING,
+         type:DataTypes.BIGINT,
         allowNull:true,
+        references:{
+            model:Category,
+            key:"id"
+        }
     },
     experience:{
          type:DataTypes.INTEGER,
