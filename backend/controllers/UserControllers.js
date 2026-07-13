@@ -35,15 +35,19 @@ exports.AddTrainer = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
     body("experience").notEmpty().withMessage("experience required"),
-    body("specialty").notEmpty().withMessage("specialty required"),
+    body("category_id").notEmpty().withMessage("category_id required"),
     async (req,res) => {
         const error = validationResult(req);
     if(!error.isEmpty()){
         return res.status(422).json({ errors: errors.array().map(err => err.msg) });
     }
     try{
-    const { name,phone,specialty,experience } = req.body;
-    await Trainer.create({name,phone,experience,specialty});
+    const { name,phone,category_id,experience } = req.body;
+    const category = await Category.findByPk(category_id)
+    if(!category){
+        return res.status(404).json({ message:"category not found" });
+    }
+    await Trainer.create({name,phone,experience,category_id});
     return res.status(201).json({message:"trainer created"});
     }catch(err){
         console.log(err)
@@ -97,7 +101,12 @@ exports.GetUsers = async (req,res) => {
             })
         }    
         else if(type === "trainer"){
-            data = await Trainer.findAll()
+            data = await Trainer.findAll({
+        include:[{
+            model:Category,
+            as:"categoryTrainer"
+        }]
+        })
         }
         else{
             data = await User.findAll({where:{role:"secrétariat"},attributes:{exclude:"password"}})

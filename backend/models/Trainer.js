@@ -16,7 +16,7 @@ const Trainer = sequelize.define("trainers",{
         type:DataTypes.STRING(8),
         allowNull:false,
     },
-    specialty:{
+    category_id:{
          type:DataTypes.BIGINT,
         allowNull:true,
         references:{

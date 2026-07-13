@@ -142,7 +142,7 @@ export default function Trainers() {
                   <Box>
                     <Typography variant="subtitle1" fontWeight={700}>{t.name}</Typography>
                     <Chip
-                      label={t.category?.name || 'Non assigné'}
+                      label={t.categoryTrainer?.name || 'Non assigné'}
                       size="small"
                       sx={{ mt: 0.5, bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 600 }}
                     />

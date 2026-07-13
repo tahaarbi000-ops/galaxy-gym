@@ -1,5 +1,7 @@
 const { body, validationResult } = require("express-validator");
 const Category = require("../models/Category");
+const { Member, Trainer } = require("../models");
+const sequelize = require("../config/db");
 
 exports.AddCategory = [
     body("name").notEmpty().withMessage("name required"),
@@ -24,15 +26,54 @@ exports.AddCategory = [
     }
 }
 ]
-exports.GetCategories = async (req,res) => {
-    try{
-    const categories = await Category.findAll()
-   
-    return res.json({message:"all categories",categories});
-    }catch(err){
-        res.status(500).json({message:"server error"})
+exports.GetCategories = async (req, res) => {
+    try {
+
+        const categories = await Category.findAll({
+        include: [
+            {
+                model: Member,
+                as: "memberCategory",
+                attributes: []
+            },
+            {
+                model: Trainer,
+                as: "trainerCategory",
+                attributes: []
+            }
+        ],
+    attributes: {
+    include: [
+        [
+            sequelize.fn(
+                "COUNT",
+                sequelize.col("memberCategory.id")
+            ),
+            "membersCount"
+        ],
+        [
+            sequelize.fn(
+                "COUNT",
+                sequelize.col("trainerCategory.id")
+            ),
+            "trainersCount"
+        ]
+    ]
+},
+    group: ["categories.id"]
+});
+
+        return res.json({
+            categories
+        });
+
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({
+            message: "server error"
+        });
     }
-}
+};
 exports.GetCategoryById = async (req,res) => {
     
 }

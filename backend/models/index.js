@@ -1,6 +1,7 @@
 const Category = require("./Category");
 const Member = require("./Member");
 const Subscription = require("./Subscription");
+const Trainer = require("./Trainer");
 
 Member.hasOne(Subscription,{
     foreignKey:"member_id",
@@ -22,4 +23,14 @@ Member.belongsTo(Category,{
     as:"category"
 })
 
-module.exports = {Category,Subscription,Member}
+Category.hasOne(Trainer,{
+    foreignKey:"category_id",
+    as:"trainerCategory"
+})
+
+Trainer.belongsTo(Category,{
+    foreignKey:"category_id",
+    as:"categoryTrainer"
+})
+
+module.exports = {Category,Subscription,Member,Trainer}

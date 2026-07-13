@@ -209,11 +209,11 @@ export default function Categories() {
                   <Stack direction="row" justifyContent="space-between">
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <GroupRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                      <Typography variant="body2" color="text.secondary">{c.members ?? 0} membres</Typography>
+                      <Typography variant="body2" color="text.secondary">{c.membersCount ?? 0} membres</Typography>
                     </Stack>
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <BadgeRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                      <Typography variant="body2" color="text.secondary">{c.trainers ?? 0} coach(s)</Typography>
+                      <Typography variant="body2" color="text.secondary">{c.trainersCount ?? 0} coach(s)</Typography>
                     </Stack>
                   </Stack>
                 </CardContent>
