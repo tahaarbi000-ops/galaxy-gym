@@ -17,6 +17,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded';
 import FitnessCenterRoundedIcon from '@mui/icons-material/FitnessCenterRounded';
 import { useAuth } from '../context/AuthContext';
+import Logo from "../assets/images/logo.png"
 
 const drawerWidth = 268;
 
@@ -55,13 +56,13 @@ export default function Layout() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box
             sx={{
-              width: 44, height: 44, borderRadius: '12px',
-              background: 'linear-gradient(135deg,#F1D57A,#D4AF37 60%,#A8862B)',
+              width: 60, height: 60, borderRadius: '12px',
+              background: 'black',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 6px 18px rgba(212,175,55,0.35)',
+              boxShadow: '0 6px 18px black',
             }}
           >
-            <FitnessCenterRoundedIcon sx={{ color: '#0B0B0F' }} />
+            <img width={60} src={Logo} />
           </Box>
           <Box>
             <Typography variant="subtitle1" fontWeight={700} lineHeight={1.1} fontFamily='"Playfair Display", serif'>
@@ -104,22 +105,6 @@ export default function Layout() {
         ))}
       </List>
 
-      <Box sx={{ p: 2 }}>
-        <Box
-          sx={{
-            p: 2, borderRadius: 3, textAlign: 'center',
-            background: 'linear-gradient(160deg, rgba(212,175,55,0.14), rgba(212,175,55,0.02))',
-            border: '1px solid rgba(212,175,55,0.2)',
-          }}
-        >
-          <Typography variant="caption" color="text.secondary">
-            Taux d'occupation aujourd'hui
-          </Typography>
-          <Typography variant="h5" fontWeight={800} color="primary.main">
-            78%
-          </Typography>
-        </Box>
-      </Box>
     </Box>
   );
 
@@ -151,22 +136,7 @@ export default function Layout() {
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box
-              sx={{
-                display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1,
-                bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.15)',
-                borderRadius: 3, px: 1.5, py: 0.6, minWidth: 220,
-              }}
-            >
-              <SearchRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              <InputBase placeholder="Rechercher..." sx={{ fontSize: 14, color: 'text.primary', flex: 1 }} />
-            </Box>
-
-            <IconButton>
-              <Badge color="primary" variant="dot">
-                <NotificationsNoneRoundedIcon />
-              </Badge>
-            </IconButton>
+            
 
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ p: 0.3 }}>
               <Avatar sx={{ bgcolor: 'primary.main', color: '#0B0B0F', fontWeight: 700 }}>
@@ -175,8 +145,8 @@ export default function Layout() {
             </IconButton>
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
               <Box sx={{ px: 2, py: 1 }}>
-                <Typography variant="body2" fontWeight={700}>{user?.name}</Typography>
-                <Typography variant="caption" color="text.secondary">{user?.role}</Typography>
+                <Typography sx={{textTransform:"capitalize"}} variant="body2" fontWeight={700}>{user?.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{user?.role === "admin" ? "Administrateur" : user?.role }</Typography>
               </Box>
               <Divider />
               <MenuItem onClick={handleLogout} sx={{ gap: 1, color: 'error.main' }}>

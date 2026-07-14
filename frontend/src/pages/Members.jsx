@@ -169,18 +169,8 @@ export default function Members() {
 
   const columns = [
     {
-      field: 'name', headerName: 'Membre', flex: 1.4, minWidth: 200,
-      renderCell: (params) => (
-        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ height: '100%' }}>
-          <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700, width: 34, height: 34, fontSize: 14 }}>
-            {params.value[0]}
-          </Avatar>
-          <Box>
-            <Typography variant="body2" fontWeight={600}>{params.value}</Typography>
-            <Typography variant="caption" color="text.secondary">{params.row.email}</Typography>
-          </Box>
-        </Stack>
-      ),
+      field: 'name', headerName: 'Membre', flex: 1,
+      
     },
     { field: 'phone', headerName: 'Téléphone', flex: 1, minWidth: 150 },
     {
@@ -197,7 +187,7 @@ export default function Members() {
         <Chip
           label={params.value}
           size="small"
-          sx={{ bgcolor: statusColor[params.value]?.bg, color: statusColor[params.value]?.color, fontWeight: 700 }}
+          sx={{ textTransform:"capitalize", bgcolor: statusColor[params.value]?.bg, color: statusColor[params.value]?.color, fontWeight: 700 }}
         />
       ),
     },
