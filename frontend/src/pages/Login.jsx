@@ -85,13 +85,14 @@ export default function Login() {
             }}
           />
         </Box>
-
+        <Box sx={{display:"flex",alignItems:"center",flexDirection:"column"}}>
         <Typography variant="h4" fontWeight={700} textAlign="center" gutterBottom>
           Bon retour
         </Typography>
         <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mb: 4 }}>
           Connectez-vous à votre espace administrateur Galaxy Gym Elfaouar
         </Typography>
+        </Box>
 
         {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 

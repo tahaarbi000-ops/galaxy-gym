@@ -112,7 +112,9 @@ export default function Trainers() {
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
+      <Stack 
+      style={{justifyContent:"space-between"}}
+      direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Entraîneurs</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -157,14 +159,14 @@ export default function Trainers() {
                       <WorkspacePremiumRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">Expérience: </Typography>
                     </Stack>
-                    <Typography variant="body2" fontWeight={600}>{t.experience}</Typography>
+                    <Typography sx={{marginLeft:0.5}} variant="body2" fontWeight={600}>{t.experience}</Typography>
                   </Stack>
                 </Stack>
 
                 <Divider sx={{ my: 2.5 }} />
 
-                <Stack direction="row" alignItems="center" justifyContent="space-between">
-                  <Stack direction="row" alignItems="center" spacing={1}>
+                <Stack style={{justifyContent:"space-between",alignItems:"center"}} direction="row" alignItems="center" justifyContent="space-between">
+                  <Stack sx={{ marginRight:1}}  direction="row" alignItems="center" spacing={1}>
                     <PhoneRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                     <Typography variant="body2" color="text.secondary">{t.phone}</Typography>
                   </Stack>

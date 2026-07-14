@@ -127,20 +127,20 @@ exports.UpdateTrainer = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
     body("experience").notEmpty().withMessage("experience required"),
-    body("specialty").notEmpty().withMessage("specialty required"),
+    body("category_id").notEmpty().withMessage("category_id required"),
     async (req,res) => {
-        const error = validationResult(req);
-    if(!error.isEmpty()){
+        const errors = validationResult(req);
+    if(!errors.isEmpty()){
         return res.status(422).json({ errors: errors.array().map(err => err.msg) });
     }
     try{
         const {id} = req.params
-        const { name,phone,specialty,experience } = req.body;
+        const { name,phone,category_id,experience } = req.body;
         const user = await Trainer.findByPk(id)
         if(!user){
             res.status(404).json({message:"trainer not found"})
         }
-        user.update({name,phone,experience,specialty})
+        user.update({name,phone,experience,category_id})
     return res.json({message:`trainer updated`});
     }catch(err){
         res.status(500).json({message:"server error"})

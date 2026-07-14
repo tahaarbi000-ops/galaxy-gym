@@ -148,7 +148,9 @@ export default function Categories() {
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
+      <Stack 
+      style={{justifyContent:"space-between"}}
+      direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Catégories</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -174,7 +176,7 @@ export default function Categories() {
                   }}
                 />
                 <CardContent sx={{ p: 3, position: 'relative' }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Stack style={{ justifyContent:"space-between", alignItems:"flex-start"}} direction="row" justifyContent="space-between" alignItems="flex-start">
                     <Box
                       sx={{
                         width: 56, height: 56, borderRadius: '16px',
@@ -194,7 +196,7 @@ export default function Categories() {
                     </Stack>
                   </Stack>
 
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Stack style={{ justifyContent:"space-between" , alignItems:"center"}} direction="row" justifyContent="space-between" alignItems="center">
                     <Typography variant="h6" fontWeight={700}>{c.name}</Typography>
                     <Stack direction="row" alignItems="baseline" spacing={0.4}>
                       <Typography variant="h6" fontWeight={800} sx={{ color }}>
@@ -206,12 +208,12 @@ export default function Categories() {
 
                   <Divider sx={{ my: 2 }} />
 
-                  <Stack direction="row" justifyContent="space-between">
-                    <Stack direction="row" alignItems="center" spacing={1}>
+                  <Stack style={{justifyContent:"space-between"}} direction="row" justifyContent="space-between">
+                    <Stack style={{alignItems:"center",marginRight:5}} direction="row" alignItems="center" spacing={1}>
                       <GroupRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">{c.membersCount ?? 0} membres</Typography>
                     </Stack>
-                    <Stack direction="row" alignItems="center" spacing={1}>
+                    <Stack style={{alignItems:"center"}} direction="row" alignItems="center" spacing={1}>
                       <BadgeRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">{c.trainersCount ?? 0} coach(s)</Typography>
                     </Stack>

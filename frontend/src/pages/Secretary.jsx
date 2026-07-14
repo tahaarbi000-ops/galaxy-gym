@@ -152,7 +152,9 @@ export default function Secretary() {
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
+      <Stack 
+      style={{justifyContent:"space-between"}}
+      direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Secrétariat</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -182,10 +184,7 @@ export default function Secretary() {
                 secretaries.map((s) => (
                   <TableRow key={s.id} hover>
                     <TableCell>
-                      <Stack direction="row" alignItems="center" spacing={1.5}>
-                        <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
-                          {s.name?.[0]?.toUpperCase()}
-                        </Avatar>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>                   
                         <Typography variant="body2" fontWeight={600}>{s.name}</Typography>
                       </Stack>
                     </TableCell>

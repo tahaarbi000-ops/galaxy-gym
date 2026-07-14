@@ -28,50 +28,45 @@ exports.AddCategory = [
 ]
 exports.GetCategories = async (req, res) => {
     try {
-
         const categories = await Category.findAll({
-        include: [
-            {
-                model: Member,
-                as: "memberCategory",
-                attributes: []
+            include: [
+                {
+                    model: Member,
+                    as: "memberCategory",
+                    attributes: []
+                },
+                {
+                    model: Trainer,
+                    as: "trainerCategory",
+                    attributes: []
+                }
+            ],
+            attributes: {
+                include: [
+                    [
+                        sequelize.fn(
+                            "COUNT",
+                            sequelize.fn("DISTINCT", sequelize.col("memberCategory.id"))
+                        ),
+                        "membersCount"
+                    ],
+                    [
+                        sequelize.fn(
+                            "COUNT",
+                            sequelize.fn("DISTINCT", sequelize.col("trainerCategory.id"))
+                        ),
+                        "trainersCount"
+                    ]
+                ]
             },
-            {
-                model: Trainer,
-                as: "trainerCategory",
-                attributes: []
-            }
-        ],
-    attributes: {
-    include: [
-        [
-            sequelize.fn(
-                "COUNT",
-                sequelize.col("memberCategory.id")
-            ),
-            "membersCount"
-        ],
-        [
-            sequelize.fn(
-                "COUNT",
-                sequelize.col("trainerCategory.id")
-            ),
-            "trainersCount"
-        ]
-    ]
-},
-    group: ["categories.id"]
-});
-
-        return res.json({
-            categories
+            group: ["categories.id"]
         });
+
+        return res.json({ categories });
 
     } catch (err) {
         console.log(err);
-        return res.status(500).json({
-            message: "server error"
-        });
+        return res.status(500).json({ message: "server error" });
     }
 };
 exports.GetCategoryById = async (req,res) => {

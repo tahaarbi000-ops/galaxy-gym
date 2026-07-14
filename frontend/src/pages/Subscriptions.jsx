@@ -130,7 +130,7 @@ export default function Subscriptions() {
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Montant</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Échéance</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Statut</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, color: 'text.secondary' }}>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -140,9 +140,7 @@ export default function Subscriptions() {
                   <TableRow key={m.id} hover>
                     <TableCell>
                       <Stack direction="row" alignItems="center" spacing={1.5}>
-                        <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
-                          {m?.member?.name?.[0]?.toUpperCase()}
-                        </Avatar>
+                        
                         <Typography variant="body2" fontWeight={600}>{m?.member?.name}</Typography>
                       </Stack>
                     </TableCell>

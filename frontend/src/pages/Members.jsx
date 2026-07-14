@@ -168,10 +168,7 @@ export default function Members() {
   });
 
   const columns = [
-    {
-      field: 'name', headerName: 'Membre', flex: 1,
-      
-    },
+    { field: 'name', headerName: 'Membre', flex: 1 },
     { field: 'phone', headerName: 'Téléphone', flex: 1, minWidth: 150 },
     {
       field: 'category', headerName: 'Catégorie', flex: 0.9, minWidth: 130,
@@ -187,7 +184,7 @@ export default function Members() {
         <Chip
           label={params.value}
           size="small"
-          sx={{ textTransform:"capitalize", bgcolor: statusColor[params.value]?.bg, color: statusColor[params.value]?.color, fontWeight: 700 }}
+          sx={{ textTransform: 'capitalize', bgcolor: statusColor[params.value]?.bg, color: statusColor[params.value]?.color, fontWeight: 700 }}
         />
       ),
     },
@@ -209,8 +206,15 @@ export default function Members() {
   const categories = ['Tous', ...new Set(category.map((c) => c.name))];
 
   return (
-    <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
+    <Box sx={{ width: '100%' }}>
+      <Stack
+      style={{justifyContent:"space-between"}}
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        spacing={2}
+        sx={{ mb: 3 }}
+      >
         <Box>
           <Typography variant="h4" fontWeight={800}>Membres</Typography>
           <Typography variant="body2" color="text.secondary">
