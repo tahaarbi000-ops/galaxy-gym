@@ -18,6 +18,7 @@ import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneR
 import FitnessCenterRoundedIcon from '@mui/icons-material/FitnessCenterRounded';
 import { useAuth } from '../context/AuthContext';
 import Logo from "../assets/images/logo.png"
+import { FiActivity } from 'react-icons/fi';
 
 const drawerWidth = 268;
 
@@ -26,6 +27,7 @@ const navItems = [
   { label: 'Membres', path: '/members', icon: <GroupRoundedIcon /> },
   { label: 'Entraîneurs', path: '/trainers', icon: <SportsGymnasticsRoundedIcon /> },
   { label: 'Secrétariat', path: '/secretary', icon: <BadgeRoundedIcon />, adminOnly: true },
+  { label: 'Entrée d\'\activité', path: '/activity', icon: <FiActivity />, adminOnly: true },
   { label: 'Catégories', path: '/categories', icon: <CategoryRoundedIcon /> },
   { label: 'Abonnements', path: '/subscriptions', icon: <CardMembershipRoundedIcon /> },
 ];

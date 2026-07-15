@@ -12,6 +12,8 @@ import Secretary from './pages/Secretary';
 import Categories from './pages/Categories';
 import Subscriptions from './pages/Subscriptions';
 import ProtectedLogin from './components/ProtectedLogin';
+import ActivityEntry from './pages/ActivityEntry';
+import ActivityLog from './pages/ActivityEntry';
 
 export default function App() {
   return (
@@ -33,6 +35,7 @@ export default function App() {
             <Route path="/secretary" element={<ProtectedRoute adminOnly={true}> <Secretary /> </ProtectedRoute> } />
             <Route path="/categories" element={<Categories />} />
             <Route path="/subscriptions" element={<Subscriptions />} />
+            <Route path="/activity" element={<ActivityLog />} />
           </Route>
         </Routes>
       </AuthProvider>

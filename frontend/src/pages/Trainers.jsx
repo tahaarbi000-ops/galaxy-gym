@@ -11,6 +11,7 @@ import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { Axios } from '../Api/Api';
 
 const validationSchema = Yup.object({
@@ -35,6 +36,7 @@ export default function Trainers() {
   const [category, setCategory] = useState([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   const fetchData = async () => {
@@ -110,6 +112,34 @@ export default function Trainers() {
     formik.resetForm({ values: emptyValues });
   };
 
+  const handleOpenDelete = (trainer) => {
+    setDeleteTarget(trainer);
+  };
+
+  const handleCloseDelete = () => {
+    setDeleteTarget(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await Axios.delete(`/user/trainer/${deleteTarget.id}`);
+      setToast({ open: true, message: 'Entraîneur supprimé avec succès.', severity: 'success' });
+      await fetchData();
+    } catch (err) {
+      setToast({
+        open: true,
+        message:
+          err?.response?.data?.message ||
+          err?.response?.data?.errors?.[0] ||
+          'Une erreur est survenue',
+        severity: 'error',
+      });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   return (
     <Box>
       <Stack 
@@ -131,24 +161,29 @@ export default function Trainers() {
           <Grid item xs={12} sm={6} lg={4} key={t.id}>
             <Card sx={{ height: '100%' }}>
               <CardContent sx={{ p: 3 }}>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Avatar
-                    sx={{
-                      width: 60, height: 60, fontSize: 22, fontWeight: 700,
-                      background: 'linear-gradient(135deg,#F1D57A,#D4AF37 60%,#A8862B)',
-                      color: '#0B0B0F',
-                    }}
-                  >
-                    {t.name.replace('Coach ', '')[0].toUpperCase()}
-                  </Avatar>
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={700}>{t.name}</Typography>
-                    <Chip
-                      label={t.categoryTrainer?.name || 'Non assigné'}
-                      size="small"
-                      sx={{ mt: 0.5, bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 600 }}
-                    />
-                  </Box>
+                <Stack style={{alignItems:"center", justifyContent:"space-between"}} direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                  <Stack style={{alignItems:"center"}} direction="row" spacing={2} alignItems="center">
+                    <Avatar
+                      sx={{
+                        width: 60, height: 60, fontSize: 22, fontWeight: 700,
+                        background: 'linear-gradient(135deg,#F1D57A,#D4AF37 60%,#A8862B)',
+                        color: '#0B0B0F',
+                      }}
+                    >
+                      {t.name.replace('Coach ', '')[0].toUpperCase()}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700}>{t.name}</Typography>
+                      <Chip
+                        label={t.categoryTrainer?.name || 'Non assigné'}
+                        size="small"
+                        sx={{ mt: 0.5, bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 600 }}
+                      />
+                    </Box>
+                  </Stack>
+                  <IconButton size="small" onClick={() => handleOpenDelete(t)}>
+                    <DeleteRoundedIcon fontSize="small" sx={{ color: 'error.main' }} />
+                  </IconButton>
                 </Stack>
 
                 <Divider sx={{ my: 2.5 }} />
@@ -266,6 +301,28 @@ export default function Trainers() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onClose={handleCloseDelete} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Supprimer l'entraîneur
+          <IconButton size="small" onClick={handleCloseDelete}>
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            Êtes-vous sûr de vouloir supprimer{' '}
+            <Typography component="span" fontWeight={700} color="text.primary">
+              {deleteTarget?.name}
+            </Typography>{' '}
+            ? Cette action est irréversible.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={handleCloseDelete} color="inherit">Annuler</Button>
+          <Button onClick={handleConfirmDelete} variant="contained" color="error">Supprimer</Button>
+        </DialogActions>
       </Dialog>
 
       <Snackbar

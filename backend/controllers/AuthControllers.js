@@ -1,7 +1,8 @@
 const { body, validationResult } = require("express-validator");
 const User = require("../models/User");
 const  bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
+const ActivityLog = require("../models/ActivityLog");
 
 exports.Login = [
     body("email").notEmpty().withMessage("email required"),
@@ -22,6 +23,13 @@ exports.Login = [
         return res.status(401).json({message:"Invalid credentials"});
     }
     const token = jwt.sign({sub:user.id,iss:"galaxygym.com",aud:"Galaxy Gym"},process.env.JWTKEY);
+    await ActivityLog.create({
+        action:"login",
+        description:`${user.name} s'est connecté`,
+        user_name:user.name,
+        user_role:user.role,
+        user_id:user.id
+    })
     return res.json({message:"Valid credentials",token});
     }catch(err){
         console.log(err)

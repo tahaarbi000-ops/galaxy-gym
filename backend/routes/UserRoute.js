@@ -1,6 +1,6 @@
 const express = require("express");
 const AuthenticateToken = require("../middlewares/AuthenticateToken");
-const { GetUsers, GetUserById, DeleteUser, AddMember, AddTrainer, AddSecretary, UpdateTrainer, UpdatesSecretary, UpdateMemberStatus } = require("../controllers/UserControllers");
+const { GetUsers, GetUserById, AddMember, AddTrainer, AddSecretary, UpdateTrainer, UpdatesSecretary, UpdateMemberStatus, DeleteSecretary, DeleteTrainer } = require("../controllers/UserControllers");
 const route = express.Router()
 
 route.post("/member",AddMember)
@@ -10,7 +10,8 @@ route.get("/:type",GetUsers)
 route.get("/:id",GetUserById)
 route.put("/trainer/:id",UpdateTrainer)
 route.put("/secretary/:id",UpdatesSecretary)
-route.delete("/:id",DeleteUser)
+route.delete("/trainer/:id",DeleteSecretary)
+route.delete("/secretary/:id",DeleteTrainer)
 route.patch("/member/:id/status", UpdateMemberStatus);
 
 

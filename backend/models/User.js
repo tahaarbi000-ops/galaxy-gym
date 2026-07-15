@@ -32,7 +32,7 @@ const User = sequelize.define("users",{
         allowNull:false,
     },
     status:{
-         type:DataTypes.ENUM("actif","congé","suspendu"),
+         type:DataTypes.ENUM("actif","congé","supprimé"),
         allowNull:true,
         defaultValue:"actif"
     },
