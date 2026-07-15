@@ -22,7 +22,7 @@ const Subscription = sequelize.define("subscriptions",{
     status:{
         type:DataTypes.ENUM("payé","non payé","en retard"),
         allowNull:false,
-        defaultValue:"non payé"
+        defaultValue:"payé"
     },
     member_id:{
         type:DataTypes.BIGINT,

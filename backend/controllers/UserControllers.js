@@ -2,7 +2,7 @@ const { body, validationResult } = require("express-validator");
 const Category = require("../models/Category");
 const Subscription = require("../models/Subscription");
 const User = require("../models/User");
-const { Member } = require("../models");
+const { Member, Payment } = require("../models");
 const Trainer = require("../models/Trainer");
 const bcrypt = require("bcryptjs");
 
@@ -22,7 +22,11 @@ exports.AddMember = [
         return res.status(404).json({ message:"category not found" });
     }
     const member = await Member.create({name,phone,category_id});
-    await Subscription.create({amount:category.price,member_id:member.id})
+    const subscription = await Subscription.create({amount:category.price,member_id:member.id})
+     await Payment.create({
+      amount: category.price,
+      subscription_id: subscription.id,
+    });
     return res.status(201).json({message:"member created"});
     }catch(err){
         console.log(err)
@@ -232,7 +236,7 @@ exports.UpdateMemberStatus = [
             const { id } = req.params;
             const { status } = req.body;
 
-            const member = await User.findByPk(id);
+            const member = await Member.findByPk(id);
             if (!member) {
                 return res.status(404).json({ message: "member not found" });
             }

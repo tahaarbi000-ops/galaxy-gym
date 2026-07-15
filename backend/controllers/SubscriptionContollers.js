@@ -2,6 +2,7 @@ const { Op } = require("sequelize");
 const { Category } = require("../models");
 const Member = require("../models/Member");
 const Subscription = require("../models/Subscription");
+const Payment = require("../models/Payment");
 
 exports.GetSubscription = async (req, res) => {
   try {
@@ -98,11 +99,14 @@ exports.Pay = async (req, res) => {
       },
     });
 
+    let paidAmount = amount;
+
     if (subscription) {
       // Already has a record this month (e.g. "non payé" / "en retard") -> mark it paid
       subscription.status = "payé";
       if (amount) subscription.amount = amount;
       await subscription.save();
+      paidAmount = amount || subscription.amount;
     } else {
       // No record yet this month -> create one as paid
       if (!amount) {
@@ -114,7 +118,15 @@ exports.Pay = async (req, res) => {
         amount,
         status: "payé",
       });
+      paidAmount = amount;
     }
+
+    // Log this payment in the payment table
+    await Payment.create({
+      amount: paidAmount,
+      paid_at: now,
+      subscription_id: subscription.id,
+    });
 
     const fullSubscription = await Subscription.findByPk(subscription.id, {
       include: [
@@ -124,10 +136,34 @@ exports.Pay = async (req, res) => {
           attributes: ["id", "name"],
           include: [{ model: Category, as: "category", attributes: ["name"] }],
         },
+        {
+          model: Payment,
+          as: "payments",
+        },
       ],
     });
 
     return res.json({ message: "payment recorded", subscription: fullSubscription });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "server error" });
+  }
+};
+
+exports.GetPayments = async (req, res) => {
+  try {
+    const { id } = req.params; // member_id
+    const subscriptions = await Subscription.findAll({
+      where: { member_id: id },
+      include: [{ model: Payment, as: "payments" }],
+      order: [["date", "DESC"]],
+    });
+
+    const payments = subscriptions
+      .flatMap((s) => s.payments.map((p) => ({ ...p.toJSON(), status: s.status })))
+      .sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at));
+
+    return res.json({ message: "payment history", payments });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "server error" });

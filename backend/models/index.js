@@ -1,5 +1,6 @@
 const Category = require("./Category");
 const Member = require("./Member");
+const Payment = require("./Payment");
 const Subscription = require("./Subscription");
 const Trainer = require("./Trainer");
 
@@ -33,4 +34,13 @@ Trainer.belongsTo(Category,{
     as:"categoryTrainer"
 })
 
-module.exports = {Category,Subscription,Member,Trainer}
+Subscription.hasMany(Payment,{
+    foreignKey: "subscription_id",
+    as: "payments" 
+});
+Payment.belongsTo(Subscription, {
+    foreignKey: "subscription_id",
+    as: "subscription" 
+});
+
+module.exports = {Category,Subscription,Member,Trainer,Payment}

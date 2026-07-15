@@ -17,7 +17,7 @@ const Member = sequelize.define("members",{
         allowNull:false,
     },
     status:{
-         type:DataTypes.ENUM("actif","inactif"),
+         type:DataTypes.ENUM("actif","inactif","suspendu"),
         allowNull:true,
         defaultValue:"actif"
     },
