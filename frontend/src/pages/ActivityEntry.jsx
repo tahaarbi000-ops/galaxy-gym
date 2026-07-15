@@ -115,7 +115,7 @@ function ActivityEntry({ log }) {
 
       {/* Content */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
+        <Stack direction="row" style={{justifyContent:"space-between",alignItems:"flex-start",gap:1}}>
           <Typography sx={{ color: '#EDEDED', fontSize: '0.9rem', lineHeight: 1.5 }}>
             {log.description}
           </Typography>
@@ -127,7 +127,7 @@ function ActivityEntry({ log }) {
           </Typography>
         </Stack>
 
-        <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} alignItems="center">
+        <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} style={{alignItems:"center"}}>
           <Chip
             label={log.user_role === 'admin' ? 'Admin' : 'Secrétariat'}
             size="small"

@@ -2,6 +2,8 @@ const { body, validationResult } = require("express-validator");
 const Category = require("../models/Category");
 const { Member, Trainer } = require("../models");
 const sequelize = require("../config/db");
+const ActivityLog = require("../models/ActivityLog");
+const User = require("../models/User");
 
 exports.AddCategory = [
     body("name").notEmpty().withMessage("name required"),
@@ -13,12 +15,28 @@ exports.AddCategory = [
         return res.status(422).json({ errors: errors.array().map(err => err.msg) });
     }
     try{
+    const userId = req.userId
     const { name,price,icon } = req.body;
     const category = await Category.findOne({where: {name}})
     if(category){
         return res.status(400).json({ message:"category exist" });
     }
-    await Category.create({name,price,icon})
+    const user = await User.findByPk(userId)
+    const categoryCreated =  await Category.create({name,price,icon})
+
+    await ActivityLog.create({
+                action:"create",
+                description:`${user.name} a ajouté le catégorie ${name}`,
+                entity_type:"category",
+                entity_id:categoryCreated.id,
+                entity_name:name,
+                user_name:user.name,
+                user_role:user.role,
+                user_id:user.id,
+                new_values: {"name":name,"price":price,"icon":icon},
+            })
+
+
     return res.status(201).json({message:"category created"});
     }catch(err){
         console.log(err)
@@ -86,6 +104,7 @@ exports.UpdateCategory = [
             return res.status(422).json({ errors: error.array().map(err => err.msg) });
         }
         try {
+            const userId = req.userId
             const { name, price, icon } = req.body;
             const { id } = req.params;
             const category = await Category.findByPk(id);
@@ -93,12 +112,24 @@ exports.UpdateCategory = [
                 return res.status(404).json({ message: "not found" });
             }
 
-            // Exclude the current category from the duplicate check,
-            // otherwise saving with its own unchanged name always 400s
             const categoryName = await Category.findOne({ where: { name } });
             if (categoryName && categoryName.id !== category.id) {
                 return res.status(400).json({ message: "category exist" });
             }
+            const user = await User.findByPk(userId)
+
+            await ActivityLog.create({
+                action:"update",
+                description:`${user.name} a modifié le catégorie ${category.name}`,
+                entity_type:"category",
+                entity_id:id,
+                entity_name:category.name,
+                user_name:user.name,
+                user_role:user.role,
+                user_id:user.id,
+                old_values: {"name":category.name,"price":category.price,"icon":category.icon},
+                new_values: {"name":name,"price":price,"icon":icon},
+            })
 
             await category.update({ name, price, icon });
             return res.status(200).json({ message: "category updated" });

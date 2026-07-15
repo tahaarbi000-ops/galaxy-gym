@@ -10,8 +10,8 @@ route.get("/:type",GetUsers)
 route.get("/:id",GetUserById)
 route.put("/trainer/:id",UpdateTrainer)
 route.put("/secretary/:id",UpdatesSecretary)
-route.delete("/trainer/:id",DeleteSecretary)
-route.delete("/secretary/:id",DeleteTrainer)
+route.delete("/secretary/:id",DeleteSecretary)
+route.delete("/trainer/:id",DeleteTrainer)
 route.patch("/member/:id/status", UpdateMemberStatus);
 
 

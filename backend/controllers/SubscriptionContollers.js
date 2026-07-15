@@ -3,6 +3,8 @@ const { Category } = require("../models");
 const Member = require("../models/Member");
 const Subscription = require("../models/Subscription");
 const Payment = require("../models/Payment");
+const ActivityLog = require("../models/ActivityLog");
+const User = require("../models/User");
 
 exports.GetSubscription = async (req, res) => {
   try {
@@ -79,6 +81,7 @@ exports.History = async (req, res) => {
 
 exports.Pay = async (req, res) => {
   try {
+    const userId =req.userId;
     const { id } = req.params; // member_id
     const { amount, method } = req.body;
 
@@ -142,6 +145,19 @@ exports.Pay = async (req, res) => {
         },
       ],
     });
+    const user = await User.findByPk(userId)
+    await ActivityLog.create({
+                action:"create",
+                description:`${user.name} a marqué l'abonnement de ${fullSubscription.member.name}`,
+                entity_type:"subscription",
+                entity_id:id,
+                entity_name:name,
+                user_name:user.name,
+                user_role:user.role,
+                user_id:user.id,
+                old_values: {"status":"non payé"},
+                new_values: {"status":"payé"},
+            })
 
     return res.json({ message: "payment recorded", subscription: fullSubscription });
   } catch (err) {

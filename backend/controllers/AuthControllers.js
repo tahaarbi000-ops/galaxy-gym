@@ -18,6 +18,9 @@ exports.Login = [
     if(!user){
         return res.status(404).json({message:"user not found"});
     }
+    if(user.status === "supprimé"){
+        return res.status(404).json({message:"user not found"});
+    }
     const checkPassword = await bcrypt.compare(password,user.password);
     if(!checkPassword){
         return res.status(401).json({message:"Invalid credentials"});

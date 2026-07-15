@@ -170,12 +170,12 @@ exports.DeleteSecretary = async (req,res) => {
         const userId = req.userId;
         const secretary = await User.findByPk(id)
         if(!secretary){
-            res.status(404).json({message:"server error"})
+            res.status(404).json({message:"secretary not found"})
         }
         const user = await User.findByPk(userId)
            await ActivityLog.create({
                 action:"delete",
-                description:`${currentUser.name} a supprimé le secrétariat ${secretary.name}`,
+                description:`${user.name} a supprimé le secrétariat ${secretary.name}`,
                 entity_type:"user",
                 entity_id:id,
                 entity_name:secretary.name,
@@ -185,13 +185,38 @@ exports.DeleteSecretary = async (req,res) => {
                 old_values: { "status":user.status },
                 new_values: {"status":"supprimé" },
             })
-            secretary.update({"status":"supprimé" })
+            secretary.update({status:"supprimé" } )
+            res.json({message:"secretary deleted"})
+
     }catch{
         res.status(500).json({message:"server error"})
     }
 }
 exports.DeleteTrainer = async (req,res) => {
-    
+     try{
+        const {id} = req.params
+        const userId = req.userId;
+        const trainer = await Trainer.findByPk(id)
+        if(!trainer){
+            res.status(404).json({message:"trainer not found"})
+        }
+        const user = await User.findByPk(userId)
+           await ActivityLog.create({
+                action:"delete",
+                description:`${user.name} a supprimé le entraîneur  ${trainer.name}`,
+                entity_type:"trainer",
+                entity_id:id,
+                entity_name:trainer.name,
+                user_name:user.name,
+                user_role:user.role,
+                user_id:user.id,
+                old_values: {"name":trainer.name,"phone":trainer.phone,"experience":trainer.experience,"category_id":trainer.category_id },
+            })
+            trainer.destroy()
+            res.json({message:"trainer deleted"})
+    }catch{
+        res.status(500).json({message:"server error"})
+    }
 }
 exports.UpdateTrainer = [
     body("name").notEmpty().withMessage("name required"),
