@@ -8,6 +8,7 @@ const AuthenticateAPI = require("./middlewares/AuthenticateAPI")
 require("./models/index")
 const { checkMissedJobs, scheduleSubscriptionJobs } = require("./jobs/subscriptionJobs");
 const { startJobWatcher } = require("./jobs/subscriptionJobs");
+const { startBackupCron, checkAndBackup } = require("./jobs/Backupservice");
 
 
 const port = process.env.PORT || 5000;
@@ -23,5 +24,8 @@ app.use("/api/v1", AuthenticateAPI, appStart);
 
 app.listen(port, async () => {
   startJobWatcher();
+  startBackupCron()
+  checkAndBackup().then(console.log).catch(console.error);
+
   console.log(`Server started on port ${port}`);
 });
