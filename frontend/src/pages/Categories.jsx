@@ -128,54 +128,53 @@ export default function Categories() {
   };
 
   // Disabling a category needs confirmation (hides it from active use elsewhere)
-  // Disabling a category needs confirmation (hides it from active use elsewhere)
-const handleOpenDisable = (c) => setDisableTarget(c);
-const handleCloseDisable = () => setDisableTarget(null);
+  const handleOpenDisable = (c) => setDisableTarget(c);
+  const handleCloseDisable = () => setDisableTarget(null);
 
-const handleConfirmDisable = async () => {
-  const target = disableTarget;
-  setDisableTarget(null);
+  const handleConfirmDisable = async () => {
+    const target = disableTarget;
+    setDisableTarget(null);
 
-  // optimistic update
-  setCategories((prev) =>
-    prev.map((c) => (c.id === target.id ? { ...c, status: 'inactive' } : c))
-  );
-
-  try {
-    await Axios.put(`/category/${target.id}/status`, { status: 'inactive' });
-    setToast({ open: true, message: `"${target.name}" a été désactivée.`, severity: 'info' });
-  } catch (err) {
-    // revert on failure
+    // optimistic update
     setCategories((prev) =>
-      prev.map((c) => (c.id === target.id ? { ...c, status: 'active' } : c))
+      prev.map((c) => (c.id === target.id ? { ...c, status: 'inactive' } : c))
     );
-    setToast({
-      open: true,
-      message: err?.response?.data?.message || 'Impossible de désactiver cette catégorie.',
-      severity: 'error',
-    });
-  }
-};
 
-const handleEnable = async (c) => {
-  setCategories((prev) =>
-    prev.map((item) => (item.id === c.id ? { ...item, status: 'active' } : item))
-  );
+    try {
+      await Axios.put(`/category/${target.id}/status`, { status: 'inactive' });
+      setToast({ open: true, message: `"${target.name}" a été désactivée.`, severity: 'info' });
+    } catch (err) {
+      // revert on failure
+      setCategories((prev) =>
+        prev.map((c) => (c.id === target.id ? { ...c, status: 'active' } : c))
+      );
+      setToast({
+        open: true,
+        message: err?.response?.data?.message || 'Impossible de désactiver cette catégorie.',
+        severity: 'error',
+      });
+    }
+  };
 
-  try {
-    await Axios.put(`/category/${c.id}/status`, { status: 'active' });
-    setToast({ open: true, message: `"${c.name}" a été réactivée.`, severity: 'success' });
-  } catch (err) {
+  const handleEnable = async (c) => {
     setCategories((prev) =>
-      prev.map((item) => (item.id === c.id ? { ...item, status: 'inactive' } : item))
+      prev.map((item) => (item.id === c.id ? { ...item, status: 'active' } : item))
     );
-    setToast({
-      open: true,
-      message: err?.response?.data?.message || 'Impossible de réactiver cette catégorie.',
-      severity: 'error',
-    });
-  }
-};
+
+    try {
+      await Axios.put(`/category/${c.id}/status`, { status: 'active' });
+      setToast({ open: true, message: `"${c.name}" a été réactivée.`, severity: 'success' });
+    } catch (err) {
+      setCategories((prev) =>
+        prev.map((item) => (item.id === c.id ? { ...item, status: 'inactive' } : item))
+      );
+      setToast({
+        open: true,
+        message: err?.response?.data?.message || 'Impossible de réactiver cette catégorie.',
+        severity: 'error',
+      });
+    }
+  };
 
   return (
     <Box>
@@ -196,7 +195,7 @@ const handleEnable = async (c) => {
         {categories.map((c, index) => {
           const Icon = iconMap.find((item) => item.value === c.icon)?.icon || FitnessCenterRoundedIcon;
           const color = colorOptions[index % colorOptions.length];
-          const isActive = c.active !== false; // treat undefined as active for backward compatibility
+          const isActive = c.status === 'active'; // ✅ lit le vrai statut renvoyé par l'API
 
           return (
             <Grid item xs={12} sm={6} lg={4} key={c.id}>
@@ -217,7 +216,7 @@ const handleEnable = async (c) => {
                   }}
                 />
                 <CardContent sx={{ p: 3, position: 'relative' }}>
-                  <Stack style={{ justifyContent:"space-between",alignItems:"flex-start"}} direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Stack style={{ justifyContent: "space-between", alignItems: "flex-start" }} direction="row" justifyContent="space-between" alignItems="flex-start">
                     <Box
                       sx={{
                         width: 56, height: 56, borderRadius: '16px',
@@ -227,7 +226,7 @@ const handleEnable = async (c) => {
                     >
                       <Icon fontSize="medium" />
                     </Box>
-                    <Stack style={{alignItems:"center"}} direction="row" spacing={0.5} alignItems="center">
+                    <Stack style={{ alignItems: "center" }} direction="row" spacing={0.5} alignItems="center">
                       {!isActive && (
                         <Chip label="Désactivée" size="small" color="default" sx={{ mr: 0.5 }} />
                       )}
@@ -244,9 +243,9 @@ const handleEnable = async (c) => {
                     </Stack>
                   </Stack>
 
-                  <Stack style={{justifyContent:"space-between",alignItems:"center"}} direction="row" justifyContent="space-between" alignItems="center">
+                  <Stack style={{ justifyContent: "space-between", alignItems: "center" }} direction="row" justifyContent="space-between" alignItems="center">
                     <Typography variant="h6" fontWeight={700}>{c.name}</Typography>
-                    <Stack style={{alignItems:"baseline"}} direction="row" alignItems="baseline" spacing={0.4}>
+                    <Stack style={{ alignItems: "baseline" }} direction="row" alignItems="baseline" spacing={0.4}>
                       <Typography variant="h6" fontWeight={800} sx={{ color }}>
                         {c.price}
                       </Typography>
@@ -256,12 +255,12 @@ const handleEnable = async (c) => {
 
                   <Divider sx={{ my: 2 }} />
 
-                  <Stack style={{justifyContent:"space-between"}} direction="row" justifyContent="space-between">
-                    <Stack style={{alignItems:"center"}} direction="row" alignItems="center" spacing={1} sx={{ mr: 1 }}>
+                  <Stack style={{ justifyContent: "space-between" }} direction="row" justifyContent="space-between">
+                    <Stack style={{ alignItems: "center" }} direction="row" alignItems="center" spacing={1} sx={{ mr: 1 }}>
                       <GroupRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">{c.membersCount ?? 0} membres</Typography>
                     </Stack>
-                    <Stack style={{alignItems:"center"}} direction="row" alignItems="center" spacing={1}>
+                    <Stack style={{ alignItems: "center" }} direction="row" alignItems="center" spacing={1}>
                       <BadgeRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">{c.trainersCount ?? 0} coach(s)</Typography>
                     </Stack>
@@ -331,7 +330,7 @@ const handleEnable = async (c) => {
                   const OptIcon = opt.icon;
                   return (
                     <MenuItem key={i} value={opt.value}>
-                      <Stack style={{alignItems:"center"}} direction="row" spacing={1} alignItems="center">
+                      <Stack style={{ alignItems: "center" }} direction="row" spacing={1} alignItems="center">
                         <OptIcon fontSize="small" />
                         <span>{opt.label}</span>
                       </Stack>

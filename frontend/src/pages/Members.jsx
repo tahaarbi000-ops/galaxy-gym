@@ -3,7 +3,7 @@ import {
   Box, Typography, Card, Stack, TextField, InputAdornment, Button, Chip,
   Avatar, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, IconButton,
   FormControl, InputLabel, Select, FormHelperText, Menu, ListItemIcon, ListItemText,
-  Snackbar, Alert,
+  Snackbar, Alert, ToggleButtonGroup, ToggleButton, Switch, FormControlLabel,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
@@ -14,6 +14,7 @@ import PhoneRoundedIcon from '@mui/icons-material/PhoneRounded';
 import CircleRoundedIcon from '@mui/icons-material/CircleRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import EventRoundedIcon from '@mui/icons-material/EventRounded';
 import { Axios } from '../Api/Api';
 import * as Yup from 'yup';
 import { useFormik } from 'formik';
@@ -24,6 +25,12 @@ const validationSchema = Yup.object({
     .matches(/^[0-9]{8}$/, 'Le numéro doit contenir 8 chiffres')
     .required('Le numéro est obligatoire'),
   category_id: Yup.string().required('Veuillez sélectionner une catégorie'),
+  memberType: Yup.string().oneOf(['nouveau', 'ancien']),
+  joinDate: Yup.string().when('memberType', {
+    is: 'ancien',
+    then: (schema) => schema.required("La date d'adhésion est obligatoire"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
 });
 
 const statusColor = {
@@ -38,6 +45,9 @@ const emptyValues = {
   name: '',
   phone: '',
   category_id: '',
+  memberType: 'nouveau',
+  joinDate: '',
+  isPaidCurrentMonth: false,
 };
 
 export default function Members() {
@@ -56,7 +66,7 @@ export default function Members() {
     try {
       const [resUser, resCategory] = await Promise.all([
         Axios.get('/user/member'),
-        Axios.get('/category'),
+        Axios.get('/category/member'),
       ]);
       setUsers(resUser.data.users);
       setCategory(resCategory.data.categories);
@@ -76,10 +86,19 @@ export default function Members() {
     onSubmit: async (values, { resetForm }) => {
       try {
         if (editingId) {
-          await Axios.put(`/user/member/${editingId}`, values);
+          // Editing: only send the core fields, old/new logic doesn't apply here
+          const { name, phone, category_id } = values;
+          await Axios.put(`/user/member/${editingId}`, { name, phone, category_id });
           setToast({ open: true, message: 'Membre mis à jour avec succès.', severity: 'success' });
         } else {
-          await Axios.post('/user/member', values);
+          // Creating: include memberType info so backend can decide whether
+          // to skip generating the current month's subscription
+          const payload = { ...values };
+          if (values.memberType === 'nouveau') {
+            delete payload.joinDate;
+            delete payload.isPaidCurrentMonth;
+          }
+          await Axios.post('/user/member', payload);
           setToast({ open: true, message: 'Nouveau membre ajouté avec succès.', severity: 'success' });
         }
 
@@ -110,6 +129,7 @@ export default function Members() {
     setEditingId(member.id);
     formik.resetForm({
       values: {
+        ...emptyValues,
         name: member.name || '',
         phone: member.phone || '',
         category_id: member.category?.id || member.category_id || '',
@@ -140,7 +160,6 @@ export default function Members() {
     const previousStatus = statusTarget.status;
     handleCloseStatusMenu();
 
-    // optimistic update
     setUsers((prev) =>
       prev.map((u) => (u.id === memberId ? { ...u, status: newStatus } : u))
     );
@@ -149,7 +168,6 @@ export default function Members() {
       await Axios.patch(`/user/member/${memberId}/status`, { status: newStatus });
       setToast({ open: true, message: 'Statut mis à jour.', severity: 'success' });
     } catch (err) {
-      // revert on failure
       setUsers((prev) =>
         prev.map((u) => (u.id === memberId ? { ...u, status: previousStatus } : u))
       );
@@ -208,7 +226,7 @@ export default function Members() {
   return (
     <Box sx={{ width: '100%' }}>
       <Stack
-      style={{justifyContent:"space-between"}}
+        style={{ justifyContent: 'space-between' }}
         direction={{ xs: 'column', sm: 'row' }}
         justifyContent="space-between"
         alignItems={{ xs: 'flex-start', sm: 'center' }}
@@ -352,6 +370,64 @@ export default function Members() {
                 </Select>
                 <FormHelperText>{formik.touched.category_id && formik.errors.category_id}</FormHelperText>
               </FormControl>
+
+              {/* Old/new member toggle — creation only */}
+              {!editingId && (
+                <>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 600 }}>
+                      Type de membre
+                    </Typography>
+                    <ToggleButtonGroup
+                      color="primary"
+                      exclusive
+                      fullWidth
+                      value={formik.values.memberType}
+                      onChange={(e, val) => {
+                        if (val) formik.setFieldValue('memberType', val);
+                      }}
+                    >
+                      <ToggleButton value="nouveau">Nouveau membre</ToggleButton>
+                      <ToggleButton value="ancien">Ancien membre</ToggleButton>
+                    </ToggleButtonGroup>
+                  </Box>
+
+                  {formik.values.memberType === 'ancien' && (
+                    <>
+                      <TextField
+                        label="Date d'adhésion"
+                        type="date"
+                        name="joinDate"
+                        value={formik.values.joinDate}
+                        onChange={formik.handleChange}
+                        error={formik.touched.joinDate && Boolean(formik.errors.joinDate)}
+                        helperText={formik.touched.joinDate && formik.errors.joinDate}
+                        fullWidth
+                        InputLabelProps={{ shrink: true }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <EventRoundedIcon fontSize="small" sx={{ color: 'primary.main' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={formik.values.isPaidCurrentMonth}
+                            onChange={(e) =>
+                              formik.setFieldValue('isPaidCurrentMonth', e.target.checked)
+                            }
+                            color="primary"
+                          />
+                        }
+                        label="Déjà payé pour le mois en cours"
+                      />
+                    </>
+                  )}
+                </>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions sx={{ p: 2.5 }}>

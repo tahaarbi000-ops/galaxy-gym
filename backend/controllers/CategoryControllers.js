@@ -44,6 +44,7 @@ exports.AddCategory = [
     }
 }
 ]
+
 exports.GetCategories = async (req, res) => {
     try {
         const categories = await Category.findAll({
@@ -87,6 +88,19 @@ exports.GetCategories = async (req, res) => {
         return res.status(500).json({ message: "server error" });
     }
 };
+
+exports.GetMemberCategories = async (req, res) => {
+    try {
+        const categories = await Category.findAll({where:{status:"active"}})
+
+        return res.json({ categories });
+
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({ message: "server error" });
+    }
+};
+
 exports.GetCategoryById = async (req,res) => {
     
 }

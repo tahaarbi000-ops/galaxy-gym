@@ -1,11 +1,11 @@
 const { Op } = require("sequelize");
-const { Subscription, Payment } = require("../models");
+const { Subscription, Payment, Member } = require("../models");
+const Category = require("../models/Category");
 const ScheduledJobs = require("../models/ScheduledJobs");
 
 const JOB_NAME = "daily-subscription-check";
 
 function todayDateOnly() {
-  // Matches DATEONLY format (YYYY-MM-DD), independent of time-of-day
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
@@ -24,6 +24,10 @@ function isSameDay(a, b) {
  * For every member, if today matches their billing anniversary day
  * (day-of-month of their most recent subscription) and no subscription
  * exists yet for the current month, create one as "non payé".
+ *
+ * Skips the member if:
+ *  - the member's status is not "actif"
+ *  - the member's category status is not "active"
  */
 async function createDailyPayments() {
   const today = new Date();
@@ -32,10 +36,6 @@ async function createDailyPayments() {
   const startOfMonth = new Date(currentYear, currentMonth, 1);
   const startOfNextMonth = new Date(currentYear, currentMonth + 1, 1);
 
-  // Pull every subscription, newest first, and keep only the latest
-  // one per member — avoids relying on the Member->Subscription
-  // association (which is currently hasOne, not hasMany, and doesn't
-  // support include.order/limit).
   const allSubscriptions = await Subscription.findAll({
     order: [["date", "DESC"]],
   });
@@ -50,6 +50,19 @@ async function createDailyPayments() {
   for (const [memberId, lastSub] of latestByMember) {
     const billingDate = new Date(lastSub.date);
     if (billingDate.getDate() !== today.getDate()) continue;
+
+    // Fetch member with its category to check both statuses
+    const member = await Member.findByPk(memberId, {
+      include: [{ model: Category, as: "category" }],
+    });
+
+    if (!member) continue;
+
+    // Condition 1: skip if member is not "actif"
+    if (member.status !== "actif") continue;
+
+    // Condition 2: skip if the member's category is not "active"
+    if (!member.category || member.category.status !== "active") continue;
 
     const existing = await Subscription.findOne({
       where: {
@@ -85,7 +98,6 @@ async function updateLateMembers() {
   }
 }
 
-
 async function runDailyJobsIfNeeded() {
   try {
     const [jobRecord] = await ScheduledJobs.findOrCreate({
@@ -94,7 +106,7 @@ async function runDailyJobsIfNeeded() {
     });
 
     if (isSameDay(jobRecord.last_run_date, todayDateOnly())) {
-      return; 
+      return;
     }
 
     console.log(`Running ${JOB_NAME}...`);
@@ -106,14 +118,12 @@ async function runDailyJobsIfNeeded() {
     console.log(`${JOB_NAME} completed.`);
   } catch (error) {
     console.error(`${JOB_NAME} failed:`, error);
-    // Deliberately don't update last_run_date on failure, so it retries next check
   }
 }
 
-
 function startJobWatcher({ recheckIntervalMs = 60 * 60 * 1000 } = {}) {
-  runDailyJobsIfNeeded(); // catch up immediately on boot
-  setInterval(runDailyJobsIfNeeded, recheckIntervalMs); // e.g. every hour
+  runDailyJobsIfNeeded();
+  setInterval(runDailyJobsIfNeeded, recheckIntervalMs);
 }
 
 module.exports = { runDailyJobsIfNeeded, startJobWatcher };

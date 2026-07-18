@@ -11,44 +11,87 @@ exports.AddMember = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
     body("category_id").notEmpty().withMessage("category required"),
-    async (req,res) => {
+    async (req, res) => {
         const error = validationResult(req);
-    if(!error.isEmpty()){
-        return res.status(422).json({ errors: errors.array().map(err => err.msg) });
-    }
-    try{
-        const user_id = req.userId;
-        const user = await User.findByPk(user_id)
-    const { name,phone,category_id } = req.body;
-    const category = await Category.findByPk(category_id)
-    if(!category){
-        return res.status(404).json({ message:"category not found" });
-    }
-    const member = await Member.create({name,phone,category_id});
-    const subscription = await Subscription.create({amount:category.price,member_id:member.id})
-     await Payment.create({
-      amount: category.price,
-      subscription_id: subscription.id,
-    });
-     await ActivityLog.create({
-        action:"create",
-        description:`${user.name} a ajouté le membre ${name}`,
-        entity_type:"member",
-        entity_id:member.id,
-        entity_name:name,
-        user_name:user.name,
-        user_role:user.role,
-        user_id:user.id,
-        new_values: { "name": name, "phone": phone, "category_id": category_id },
-    })
-    return res.status(201).json({message:"member created"});
-    }catch(err){
-        console.log(err)
-        res.status(500).json({message:"server error"})
-    }
+        if (!error.isEmpty()) {
+            return res.status(422).json({ errors: error.array().map(err => err.msg) });
+        }
+        try {
+            const user_id = req.userId;
+            const user = await User.findByPk(user_id);
+            const {
+                name,
+                phone,
+                category_id,
+                memberType,          
+                joinDate,            
+                isPaidCurrentMonth,   
+            } = req.body;
 
-}
-]
+            const category = await Category.findByPk(category_id);
+            if (!category) {
+                return res.status(404).json({ message: "category not found" });
+            }
+
+            const isOldMember = memberType === "ancien";
+
+            // If it's an old member with a join date, backdate createdAt
+            const member = await Member.create({
+                name,
+                phone,
+                category_id,
+                ...(isOldMember && joinDate ? { createdAt: new Date(joinDate) } : {}),
+            });
+
+            let subscription;
+            let payment = null;
+
+            if (isOldMember) {
+               
+                subscription = await Subscription.create({
+                    amount: category.price,
+                    member_id: member.id,
+                    status: isPaidCurrentMonth ? "payé" : "non payé",
+                });
+
+                if (isPaidCurrentMonth) {
+                    payment = await Payment.create({
+                        amount: category.price,
+                        subscription_id: subscription.id,
+                    });
+                }
+            } else {
+                // New member: keep the original behaviour — subscription +
+                // payment created immediately
+                subscription = await Subscription.create({
+                    amount: category.price,
+                    member_id: member.id,
+                });
+                payment = await Payment.create({
+                    amount: category.price,
+                    subscription_id: subscription.id,
+                });
+            }
+
+            await ActivityLog.create({
+                action: "create",
+                description: `${user.name} a ajouté le membre ${name}`,
+                entity_type: "member",
+                entity_id: member.id,
+                entity_name: name,
+                user_name: user.name,
+                user_role: user.role,
+                user_id: user.id,
+                new_values: { name, phone, category_id, memberType: memberType || "nouveau" },
+            });
+
+            return res.status(201).json({ message: "member created" });
+        } catch (err) {
+            console.log(err);
+            res.status(500).json({ message: "server error" });
+        }
+    },
+];
 exports.AddTrainer = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
