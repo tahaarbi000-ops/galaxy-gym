@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent, Stack, Button, IconButton, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
-  InputAdornment, Snackbar, Alert,
+  InputAdornment, Snackbar, Alert, Chip, Switch, Tooltip,
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import FitnessCenterRoundedIcon from '@mui/icons-material/FitnessCenterRounded';
@@ -14,7 +14,7 @@ import PoolRoundedIcon from '@mui/icons-material/PoolRounded';
 import GroupRoundedIcon from '@mui/icons-material/GroupRounded';
 import BadgeRoundedIcon from '@mui/icons-material/BadgeRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import PaidRoundedIcon from '@mui/icons-material/PaidRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import * as Yup from 'yup';
@@ -54,7 +54,7 @@ export default function Categories() {
   const [categories, setCategories] = useState([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [disableTarget, setDisableTarget] = useState(null); // category being disabled (confirmation)
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   const fetchCategories = async () => {
@@ -127,30 +127,60 @@ export default function Categories() {
     formik.resetForm({ values: emptyValues });
   };
 
-  const handleOpenDelete = (c) => setDeleteTarget(c);
-  const handleCloseDelete = () => setDeleteTarget(null);
+  // Disabling a category needs confirmation (hides it from active use elsewhere)
+  // Disabling a category needs confirmation (hides it from active use elsewhere)
+const handleOpenDisable = (c) => setDisableTarget(c);
+const handleCloseDisable = () => setDisableTarget(null);
 
-  const handleConfirmDelete = async () => {
-    try {
-      await Axios.delete(`/category/${deleteTarget.id}`);
-      setCategories((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-      setToast({ open: true, message: 'Catégorie supprimée.', severity: 'info' });
-      setDeleteTarget(null);
-    } catch (err) {
-      setToast({
-        open: true,
-        message: err?.response?.data?.message || 'Impossible de supprimer cette catégorie.',
-        severity: 'error',
-      });
-      setDeleteTarget(null);
-    }
-  };
+const handleConfirmDisable = async () => {
+  const target = disableTarget;
+  setDisableTarget(null);
+
+  // optimistic update
+  setCategories((prev) =>
+    prev.map((c) => (c.id === target.id ? { ...c, status: 'inactive' } : c))
+  );
+
+  try {
+    await Axios.put(`/category/${target.id}/status`, { status: 'inactive' });
+    setToast({ open: true, message: `"${target.name}" a été désactivée.`, severity: 'info' });
+  } catch (err) {
+    // revert on failure
+    setCategories((prev) =>
+      prev.map((c) => (c.id === target.id ? { ...c, status: 'active' } : c))
+    );
+    setToast({
+      open: true,
+      message: err?.response?.data?.message || 'Impossible de désactiver cette catégorie.',
+      severity: 'error',
+    });
+  }
+};
+
+const handleEnable = async (c) => {
+  setCategories((prev) =>
+    prev.map((item) => (item.id === c.id ? { ...item, status: 'active' } : item))
+  );
+
+  try {
+    await Axios.put(`/category/${c.id}/status`, { status: 'active' });
+    setToast({ open: true, message: `"${c.name}" a été réactivée.`, severity: 'success' });
+  } catch (err) {
+    setCategories((prev) =>
+      prev.map((item) => (item.id === c.id ? { ...item, status: 'inactive' } : item))
+    );
+    setToast({
+      open: true,
+      message: err?.response?.data?.message || 'Impossible de réactiver cette catégorie.',
+      severity: 'error',
+    });
+  }
+};
 
   return (
     <Box>
-      <Stack 
-      style={{justifyContent:"space-between"}}
-      direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Catégories</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -166,9 +196,20 @@ export default function Categories() {
         {categories.map((c, index) => {
           const Icon = iconMap.find((item) => item.value === c.icon)?.icon || FitnessCenterRoundedIcon;
           const color = colorOptions[index % colorOptions.length];
+          const isActive = c.active !== false; // treat undefined as active for backward compatibility
+
           return (
             <Grid item xs={12} sm={6} lg={4} key={c.id}>
-              <Card sx={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
+              <Card
+                sx={{
+                  height: '100%',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  opacity: isActive ? 1 : 0.55,
+                  filter: isActive ? 'none' : 'grayscale(40%)',
+                  transition: 'opacity 0.2s ease, filter 0.2s ease',
+                }}
+              >
                 <Box
                   sx={{
                     position: 'absolute', top: -30, right: -30, width: 140, height: 140,
@@ -176,7 +217,7 @@ export default function Categories() {
                   }}
                 />
                 <CardContent sx={{ p: 3, position: 'relative' }}>
-                  <Stack style={{ justifyContent:"space-between", alignItems:"flex-start"}} direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Stack style={{ justifyContent:"space-between",alignItems:"flex-start"}} direction="row" justifyContent="space-between" alignItems="flex-start">
                     <Box
                       sx={{
                         width: 56, height: 56, borderRadius: '16px',
@@ -186,19 +227,26 @@ export default function Categories() {
                     >
                       <Icon fontSize="medium" />
                     </Box>
-                    <Stack direction="row" spacing={0.5}>
+                    <Stack style={{alignItems:"center"}} direction="row" spacing={0.5} alignItems="center">
+                      {!isActive && (
+                        <Chip label="Désactivée" size="small" color="default" sx={{ mr: 0.5 }} />
+                      )}
                       <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => handleOpenEdit(c)}>
                         <EditRoundedIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" sx={{ color: 'error.main' }} onClick={() => handleOpenDelete(c)}>
-                        <DeleteOutlineRoundedIcon fontSize="small" />
-                      </IconButton>
+                      <Tooltip title={isActive ? 'Désactiver' : 'Réactiver'}>
+                        <Switch
+                          size="small"
+                          checked={isActive}
+                          onChange={() => (isActive ? handleOpenDisable(c) : handleEnable(c))}
+                        />
+                      </Tooltip>
                     </Stack>
                   </Stack>
 
-                  <Stack style={{ justifyContent:"space-between" , alignItems:"center"}} direction="row" justifyContent="space-between" alignItems="center">
+                  <Stack style={{justifyContent:"space-between",alignItems:"center"}} direction="row" justifyContent="space-between" alignItems="center">
                     <Typography variant="h6" fontWeight={700}>{c.name}</Typography>
-                    <Stack direction="row" alignItems="baseline" spacing={0.4}>
+                    <Stack style={{alignItems:"baseline"}} direction="row" alignItems="baseline" spacing={0.4}>
                       <Typography variant="h6" fontWeight={800} sx={{ color }}>
                         {c.price}
                       </Typography>
@@ -209,7 +257,7 @@ export default function Categories() {
                   <Divider sx={{ my: 2 }} />
 
                   <Stack style={{justifyContent:"space-between"}} direction="row" justifyContent="space-between">
-                    <Stack style={{alignItems:"center",marginRight:5}} direction="row" alignItems="center" spacing={1}>
+                    <Stack style={{alignItems:"center"}} direction="row" alignItems="center" spacing={1} sx={{ mr: 1 }}>
                       <GroupRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                       <Typography variant="body2" color="text.secondary">{c.membersCount ?? 0} membres</Typography>
                     </Stack>
@@ -238,15 +286,15 @@ export default function Categories() {
           <DialogContent dividers>
             <Stack spacing={2.5} sx={{ mt: 0.5 }}>
               <TextField
-  fullWidth
-  label="Nom de la catégorie"
-  name="name"
-  value={formik.values.name}
-  onChange={formik.handleChange}
-  onBlur={formik.handleBlur}
-  error={formik.touched.name && Boolean(formik.errors.name)}
-  helperText={formik.touched.name && formik.errors.name}
-/>
+                fullWidth
+                label="Nom de la catégorie"
+                name="name"
+                value={formik.values.name}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                error={formik.touched.name && Boolean(formik.errors.name)}
+                helperText={formik.touched.name && formik.errors.name}
+              />
 
               <TextField
                 fullWidth
@@ -283,7 +331,7 @@ export default function Categories() {
                   const OptIcon = opt.icon;
                   return (
                     <MenuItem key={i} value={opt.value}>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack style={{alignItems:"center"}} direction="row" spacing={1} alignItems="center">
                         <OptIcon fontSize="small" />
                         <span>{opt.label}</span>
                       </Stack>
@@ -303,26 +351,28 @@ export default function Categories() {
         </form>
       </Dialog>
 
-      {/* Dialogue de suppression */}
-      <Dialog open={Boolean(deleteTarget)} onClose={handleCloseDelete} fullWidth maxWidth="xs">
+      {/* Dialogue de désactivation (remplace la suppression) */}
+      <Dialog open={Boolean(disableTarget)} onClose={handleCloseDisable} fullWidth maxWidth="xs">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          Supprimer la catégorie
-          <IconButton size="small" onClick={handleCloseDelete}>
+          Désactiver la catégorie
+          <IconButton size="small" onClick={handleCloseDisable}>
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2">
-            Êtes-vous sûr de vouloir supprimer{' '}
+            Voulez-vous désactiver{' '}
             <Typography component="span" fontWeight={700} color="text.primary">
-              {deleteTarget?.name}
+              {disableTarget?.name}
             </Typography>{' '}
-            ? Cette action est irréversible.
+            ? Elle ne sera plus proposée aux membres, mais ses données seront conservées et vous pourrez la réactiver à tout moment.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 2.5 }}>
-          <Button onClick={handleCloseDelete} color="inherit">Annuler</Button>
-          <Button onClick={handleConfirmDelete} variant="contained" color="error">Supprimer</Button>
+          <Button onClick={handleCloseDisable} color="inherit">Annuler</Button>
+          <Button onClick={handleConfirmDisable} variant="contained" color="warning" startIcon={<BlockRoundedIcon />}>
+            Désactiver
+          </Button>
         </DialogActions>
       </Dialog>
 

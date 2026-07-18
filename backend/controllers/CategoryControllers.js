@@ -139,3 +139,43 @@ exports.UpdateCategory = [
         }
     }
 ];
+
+exports.UpdateCategoryStatus = [
+    body("status").notEmpty().withMessage("status required"),
+    async (req, res) => {
+        const error = validationResult(req);
+        if (!error.isEmpty()) {
+            return res.status(422).json({ errors: error.array().map(err => err.msg) });
+        }
+        try {
+            const userId = req.userId
+            const { status } = req.body;
+            const { id } = req.params;
+            const category = await Category.findByPk(id);
+            if (!category) {
+                return res.status(404).json({ message: "not found" });
+            }
+
+            const user = await User.findByPk(userId)
+
+            await ActivityLog.create({
+                action:"update",
+                description:`${user.name} a modifié le état de catégorie ${category.name}`,
+                entity_type:"category",
+                entity_id:id,
+                entity_name:category.name,
+                user_name:user.name,
+                user_role:user.role,
+                user_id:user.id,
+                old_values: {"status":category.status},
+                new_values: {"status":status},
+            })
+
+            await category.update({ status });
+            return res.status(200).json({ message: "category updated" });
+        } catch (err) {
+            console.log(err);
+            res.status(500).json({ message: "server error" });
+        }
+    }
+];

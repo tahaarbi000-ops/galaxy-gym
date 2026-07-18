@@ -24,8 +24,8 @@ app.use("/api/v1", AuthenticateAPI, appStart);
 
 app.listen(port, async () => {
   startJobWatcher();
-  startBackupCron()
-  checkAndBackup().then(console.log).catch(console.error);
+  // startBackupCron()
+  // checkAndBackup().then(console.log).catch(console.error);
 
   console.log(`Server started on port ${port}`);
 });
