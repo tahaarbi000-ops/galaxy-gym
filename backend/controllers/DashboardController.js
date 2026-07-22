@@ -1,8 +1,8 @@
 const { Op, fn, col } = require("sequelize");
-const { Member, Trainer, Subscription, Category } = require("../models");
+const { Member, Trainer, Subscription, Category, Payment } = require("../models");
 
-exports.Stats = async (req,res) => {
-    try{
+exports.Stats = async (req, res) => {
+    try {
         const now = new Date();
 
         const startCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -36,55 +36,59 @@ exports.Stats = async (req,res) => {
                     previousMonthMembers) *
                 100;
         }
+
+        // Revenue = actual cash received (Payment.paid_at), NOT the billing
+        // month the subscription belongs to (Subscription.date). A payment
+        // made today for a previous month's "Arriéré" record must count as
+        // THIS month's revenue, since that's when the money came in.
         const currentRevenue =
-    (await Subscription.sum("amount", {
-        where: {
-            status: "payé",
-            date: {
-                [Op.gte]: startCurrentMonth,
-                [Op.lt]: endCurrentMonth,
-            },
-        },
-    })) || 0;
-
-    const previousRevenue =
-        (await Subscription.sum("amount", {
-            where: {
-                status: "payé",
-                date: {
-                    [Op.gte]: startPreviousMonth,
-                    [Op.lt]: endPreviousMonth,
+            (await Payment.sum("amount", {
+                where: {
+                    paid_at: {
+                        [Op.gte]: startCurrentMonth,
+                        [Op.lt]: endCurrentMonth,
+                    },
                 },
-            },
-        })) || 0;
-        let revenueGrowth = 0;
-        const trainer = await Trainer.count()
+            })) || 0;
 
-    if (previousRevenue > 0) {
-        revenueGrowth =
-            ((currentRevenue - previousRevenue) / previousRevenue) * 100;
-    }
-    res.json({
-    members: {
-        total: totalMembers,
-        thisMonth: currentMonthMembers,
-        lastMonth: previousMonthMembers,
-        growth: Number(memberGrowth.toFixed(1)),
-    },
-    trainer,
-    revenue: {
-        thisMonth: currentRevenue,
-        lastMonth: previousRevenue,
-        growth: Number(revenueGrowth.toFixed(1)),
-    },
-});
-    }catch(err){
-        console.log(err)
+        const previousRevenue =
+            (await Payment.sum("amount", {
+                where: {
+                    paid_at: {
+                        [Op.gte]: startPreviousMonth,
+                        [Op.lt]: endPreviousMonth,
+                    },
+                },
+            })) || 0;
+
+        let revenueGrowth = 0;
+        const trainer = await Trainer.count();
+
+        if (previousRevenue > 0) {
+            revenueGrowth =
+                ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+        }
+        res.json({
+            members: {
+                total: totalMembers,
+                thisMonth: currentMonthMembers,
+                lastMonth: previousMonthMembers,
+                growth: Number(memberGrowth.toFixed(1)),
+            },
+            trainer,
+            revenue: {
+                thisMonth: currentRevenue,
+                lastMonth: previousRevenue,
+                growth: Number(revenueGrowth.toFixed(1)),
+            },
+        });
+    } catch (err) {
+        console.log(err);
         return res.status(500).json({
-            message: "server error"
+            message: "server error",
         });
     }
-}
+};
 
 exports.RevenueEvolution = async (req, res) => {
     try {
@@ -97,19 +101,22 @@ exports.RevenueEvolution = async (req, res) => {
             1
         );
 
-        const revenues = await Subscription.findAll({
+        // Group by the month the PAYMENT was actually made (paid_at), not
+        // the billing period the subscription covers. This way a payment
+        // received today for an old Arriéré record shows up in today's
+        // bar, matching real cash flow.
+        const revenues = await Payment.findAll({
             attributes: [
-                [fn("DATE_TRUNC", "month", col("date")), "month"],
+                [fn("DATE_TRUNC", "month", col("paid_at")), "month"],
                 [fn("SUM", col("amount")), "revenue"],
             ],
             where: {
-                status: "payé",
-                date: {
+                paid_at: {
                     [Op.gte]: startDate,
                 },
             },
-            group: [fn("DATE_TRUNC", "month", col("date"))],
-            order: [[fn("DATE_TRUNC", "month", col("date")), "ASC"]],
+            group: [fn("DATE_TRUNC", "month", col("paid_at"))],
+            order: [[fn("DATE_TRUNC", "month", col("paid_at")), "ASC"]],
             raw: true,
         });
 
@@ -173,7 +180,6 @@ exports.RevenueEvolution = async (req, res) => {
         });
     }
 };
-
 exports.MembersByCategory = async (req, res) => {
     try {
         const data = await Member.findAll({

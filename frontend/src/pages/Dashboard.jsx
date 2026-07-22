@@ -88,7 +88,7 @@ export default function Dashboard() {
         <Box item xs={12} lg={8}>
           <Card sx={{ height: '100%' }}>
             <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+              <Stack style={{justifyContent:"space-between",alignItems:"center" }} direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                 <Box>
                   <Typography variant="h6" fontWeight={700}>Évolution du revenu</Typography>
                   <Typography variant="caption" color="text.secondary">7 derniers mois</Typography>
@@ -151,6 +151,7 @@ export default function Dashboard() {
         direction="row"
         alignItems="center"
         justifyContent="space-between"
+        style={{justifyContent:"space-between",alignItems:"center" }}
     >
         <Stack style={{alignItems:"center"}} direction="row" spacing={1} alignItems="center">
             <Box

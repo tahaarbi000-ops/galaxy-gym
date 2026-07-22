@@ -51,17 +51,12 @@ async function createDailyPayments() {
     const billingDate = new Date(lastSub.date);
     if (billingDate.getDate() !== today.getDate()) continue;
 
-    // Fetch member with its category to check both statuses
     const member = await Member.findByPk(memberId, {
       include: [{ model: Category, as: "category" }],
     });
 
     if (!member) continue;
-
-    // Condition 1: skip if member is not "actif"
     if (member.status !== "actif") continue;
-
-    // Condition 2: skip if the member's category is not "active"
     if (!member.category || member.category.status !== "active") continue;
 
     const existing = await Subscription.findOne({
@@ -81,6 +76,11 @@ async function createDailyPayments() {
   }
 }
 
+/**
+ * "non payé" -> "en retard" once the due date has passed within the
+ * SAME billing cycle. This only covers the current month's lateness,
+ * not debt carried over from earlier months (that's markArrears below).
+ */
 async function updateLateMembers() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -98,6 +98,37 @@ async function updateLateMembers() {
   }
 }
 
+/**
+ * "non payé" / "en retard" -> "Arriéré" once the unpaid record belongs
+ * to a month BEFORE the current one. At that point it's no longer
+ * "late this cycle" — it's debt the member is carrying forward.
+ *
+ * IMPORTANT: this must run AFTER createDailyPayments() and
+ * updateLateMembers() in the same pass, so a record has already had
+ * the chance to become "en retard" for its own month before we check
+ * whether it's now stale relative to a NEW month that just started.
+ *
+ * Runs every day (not just on billing anniversaries) because arrears
+ * become visible the moment the calendar rolls into a new month —
+ * independent of any individual member's billing date.
+ */
+async function markArrears() {
+  const today = new Date();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const pastUnpaid = await Subscription.findAll({
+    where: {
+      status: { [Op.in]: ["non payé", "en retard"] },
+      date: { [Op.lt]: startOfMonth },
+    },
+  });
+
+  for (const sub of pastUnpaid) {
+    sub.status = "arriéré";
+    await sub.save();
+  }
+}
+
 async function runDailyJobsIfNeeded() {
   try {
     const [jobRecord] = await ScheduledJobs.findOrCreate({
@@ -110,8 +141,12 @@ async function runDailyJobsIfNeeded() {
     }
 
     console.log(`Running ${JOB_NAME}...`);
+    // Order matters: create this month's record first, flag current-month
+    // lateness second, THEN roll anything still unpaid from before this
+    // month into Arriéré.
     await createDailyPayments();
     await updateLateMembers();
+    await markArrears();
 
     jobRecord.last_run_date = todayDateOnly();
     await jobRecord.save();

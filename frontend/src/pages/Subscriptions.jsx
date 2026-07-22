@@ -19,6 +19,9 @@ const statusColor = {
   'en retard': { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
 };
 
+// Style for the "Arriéré" badge (member owes for more than one month)
+const arrieréStyle = { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' };
+
 const isCurrentMonth = (dateStr) => {
   if (!dateStr) return false;
   const d = new Date(dateStr);
@@ -147,7 +150,6 @@ export default function Subscriptions() {
                   <TableRow key={m.id} hover>
                     <TableCell>
                       <Stack direction="row" alignItems="center" spacing={1.5}>
-
                         <Typography variant="body2" fontWeight={600}>{m?.member?.name}</Typography>
                       </Stack>
                     </TableCell>
@@ -161,7 +163,7 @@ export default function Subscriptions() {
                       <Typography variant="body2" color="text.secondary">{new Date(m?.date).toLocaleDateString()}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Stack direction="row" spacing={0.75} alignItems="center">
+                      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
                         <Chip
                           label={m.status}
                           size="small"
@@ -173,6 +175,13 @@ export default function Subscriptions() {
                             size="small"
                             variant="outlined"
                             sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'text.secondary', fontSize: 11 }}
+                          />
+                        )}
+                        {m.unpaidCount > 1 && (
+                          <Chip
+                            label={`Arriéré — ${m.unpaidCount} mois — ${m.totalDue} DT`}
+                            size="small"
+                            sx={{ bgcolor: arrieréStyle.bg, color: arrieréStyle.color, fontWeight: 700, fontSize: 11 }}
                           />
                         )}
                       </Stack>

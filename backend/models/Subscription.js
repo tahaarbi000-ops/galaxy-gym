@@ -20,7 +20,7 @@ const Subscription = sequelize.define("subscriptions",{
         allowNull:false,
     },
     status:{
-        type:DataTypes.ENUM("payé","non payé","en retard"),
+        type:DataTypes.ENUM("payé","non payé","en retard","arriéré"),
         allowNull:false,
         defaultValue:"payé"
     },
