@@ -19,6 +19,7 @@ import FitnessCenterRoundedIcon from '@mui/icons-material/FitnessCenterRounded';
 import { useAuth } from '../context/AuthContext';
 import Logo from "../assets/images/logo.png"
 import { FiActivity } from 'react-icons/fi';
+import { IoCloud, IoCloudUpload } from 'react-icons/io5';
 
 const drawerWidth = 268;
 
@@ -30,6 +31,7 @@ const navItems = [
   { label: 'Entrée d\'\activité', path: '/activity', icon: <FiActivity />, adminOnly: true },
   { label: 'Catégories', path: '/categories', icon: <CategoryRoundedIcon /> },
   { label: 'Abonnements', path: '/subscriptions', icon: <CardMembershipRoundedIcon /> },
+  { label: 'Sauvegarde', path: '/backup', icon: <IoCloudUpload /> },
 ];
 
 export default function Layout() {

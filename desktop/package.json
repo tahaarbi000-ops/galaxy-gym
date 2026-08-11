@@ -1,12 +1,38 @@
 {
-  "name": "desktop",
+  "name": "galaxy-gym",
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "vite build",
-    "electron": "electron ."
+    "electron": "electron .",
+    "dist": "electron-builder"
+
+  },
+   "build": {
+    "appId": "com.galaxygym.id",
+    "productName": "Galaxy Gym",
+    "asarUnpack": [
+    "backend/**/*"
+    ],
+    "files": [
+      "main.js",
+      "backend/**/*",
+      "frontend/**/*",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "icon": "assets/logo.jpg",
+      "target": "nsis"
+    },
+    "mac": {
+      "icon": "assets/logo.jpg"
+    },
+    "linux": {
+      "icon": "assets/logo.jpg",
+      "target": "AppImage"
+    }
   },
   "author": "",
   "license": "ISC",
