@@ -23,14 +23,14 @@
       "!node_modules/**/*"
     ],
     "win": {
-      "icon": "assets/logo.jpg",
+      "icon": "assets/logo.png",
       "target": "nsis"
     },
     "mac": {
-      "icon": "assets/logo.jpg"
+      "icon": "assets/logo.png"
     },
     "linux": {
-      "icon": "assets/logo.jpg",
+      "icon": "assets/logo.png",
       "target": "AppImage"
     }
   },
