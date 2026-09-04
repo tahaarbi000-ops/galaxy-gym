@@ -218,7 +218,14 @@ exports.GetPayments = async (req, res) => {
     });
 
     const payments = subscriptions
-      .flatMap((s) => s.payments.map((p) => ({ ...p.toJSON(), status: s.status })))
+      .flatMap((s) =>
+        s.payments.map((p) => ({
+          ...p.toJSON(),
+          status: s.status,
+          subscription_date: s.date,   // <-- which month this payment covers
+          subscription_id: s.id,       // already on p, but explicit here too
+        }))
+      )
       .sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at));
 
     return res.json({ message: "payment history", payments });

@@ -6,6 +6,7 @@ const { Member, Payment } = require("../models");
 const Trainer = require("../models/Trainer");
 const bcrypt = require("bcryptjs");
 const ActivityLog = require("../models/ActivityLog");
+const { Op } = require("sequelize");
 
 exports.AddMember = [
     body("name").notEmpty().withMessage("name required"),
@@ -92,6 +93,7 @@ exports.AddMember = [
         }
     },
 ];
+
 exports.AddTrainer = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
@@ -178,6 +180,9 @@ exports.GetUsers = async (req,res) => {
         let data = [];
         if(type === "member"){
             data = await Member.findAll({
+                where:{status:{
+                            [Op.ne]:"suspendu"},
+                },
                 include:[
                     {
                         model:Category,
@@ -428,3 +433,160 @@ exports.UpdateMemberStatus = [
         }
     }
 ];
+
+exports.UpdateMember = [
+    body("name").notEmpty().withMessage("name required"),
+    body("phone").notEmpty().withMessage("phone required"),
+    body("category_id").notEmpty().withMessage("category required"),
+
+    async (req, res) => {
+        const error = validationResult(req);
+
+        if (!error.isEmpty()) {
+            return res.status(422).json({
+                errors: error.array().map(err => err.msg),
+            });
+        }
+
+        try {
+            const user_id = req.userId;
+            const { id } = req.params;
+
+            const {
+                name,
+                phone,
+                category_id,
+                isPaidCurrentMonth,
+            } = req.body;
+
+            // Get current user
+            const user = await User.findByPk(user_id);
+
+            if (!user) {
+                return res.status(404).json({
+                    message: "user not found",
+                });
+            }
+
+            // Get member
+            const member = await Member.findByPk(id);
+
+            if (!member) {
+                return res.status(404).json({
+                    message: "member not found",
+                });
+            }
+
+            // Get category
+            const category = await Category.findByPk(category_id);
+
+            if (!category) {
+                return res.status(404).json({
+                    message: "category not found",
+                });
+            }
+
+            // Keep old values for activity log
+            const oldValues = {
+                name: member.name,
+                phone: member.phone,
+                category_id: member.category_id,
+            };
+
+            // Update member
+            await member.update({
+                name,
+                phone,
+                category_id,
+            });
+
+            // Get current subscription
+            const subscription = await Subscription.findOne({
+                where: {
+                    member_id: member.id,
+                },
+                order: [["createdAt", "DESC"]],
+            });
+
+            if (subscription) {
+                // Update subscription amount if category price changed
+                await subscription.update({
+                    amount: category.price,
+                    status: isPaidCurrentMonth ? "payé" : "non payé",
+                });
+
+                // Payment handling
+                const payment = await Payment.findOne({
+                    where: {
+                        subscription_id: subscription.id,
+                    },
+                });
+
+                if (isPaidCurrentMonth) {
+                    // Create payment if it doesn't exist
+                    if (!payment) {
+                        await Payment.create({
+                            amount: category.price,
+                            subscription_id: subscription.id,
+                        });
+                    } else {
+                        // Update existing payment
+                        await payment.update({
+                            amount: category.price,
+                        });
+                    }
+                } else {
+                    // If marked as unpaid, remove existing payment
+                    if (payment) {
+                        await payment.destroy();
+                    }
+                }
+            } else {
+                // If member doesn't have a subscription, create one
+                const newSubscription = await Subscription.create({
+                    amount: category.price,
+                    member_id: member.id,
+                    status: isPaidCurrentMonth ? "payé" : "non payé",
+                });
+
+                if (isPaidCurrentMonth) {
+                    await Payment.create({
+                        amount: category.price,
+                        subscription_id: newSubscription.id,
+                    });
+                }
+            }
+
+            // Activity log
+            await ActivityLog.create({
+                action: "update",
+                description: `${user.name} a modifié le membre ${name}`,
+                entity_type: "member",
+                entity_id: member.id,
+                entity_name: name,
+                user_name: user.name,
+                user_role: user.role,
+                user_id: user.id,
+                old_values: oldValues,
+                new_values: {
+                    name,
+                    phone,
+                    category_id,
+                    isPaidCurrentMonth,
+                },
+            });
+
+            return res.status(200).json({
+                message: "member updated",
+            });
+
+        } catch (err) {
+            console.log(err);
+
+            return res.status(500).json({
+                message: "server error",
+            });
+        }
+    },
+];
+
