@@ -19,5 +19,9 @@ const Category = sequelize.define("categories",{
         type:DataTypes.STRING,
         allowNull:true,
     },
+    status: {
+        type: DataTypes.ENUM("active", "inactive"),
+        defaultValue: "active",
+    },
 })
 module.exports = Category;

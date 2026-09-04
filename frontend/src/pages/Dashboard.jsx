@@ -88,7 +88,7 @@ export default function Dashboard() {
         <Box item xs={12} lg={8}>
           <Card sx={{ height: '100%' }}>
             <CardContent sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+              <Stack style={{justifyContent:"space-between",alignItems:"center" }} direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                 <Box>
                   <Typography variant="h6" fontWeight={700}>Évolution du revenu</Typography>
                   <Typography variant="caption" color="text.secondary">7 derniers mois</Typography>
@@ -151,8 +151,9 @@ export default function Dashboard() {
         direction="row"
         alignItems="center"
         justifyContent="space-between"
+        style={{justifyContent:"space-between",alignItems:"center" }}
     >
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack style={{alignItems:"center"}} direction="row" spacing={1} alignItems="center">
             <Box
                 sx={{
                     width: 10,
@@ -166,9 +167,7 @@ export default function Dashboard() {
             </Typography>
         </Stack>
 
-        <Typography variant="body2" fontWeight={700}>
-            {c.members} ({c.percentage}%)
-        </Typography>
+        
     </Stack>
 ))}
               </Stack>
@@ -189,7 +188,7 @@ export default function Dashboard() {
                     alignItems="center"
                     sx={{ width: '100%', py: 1.5 }}
                   >
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack style={{alignItems:"center"}} direction="row" alignItems="center" spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
                       <Avatar sx={{ bgcolor: 'rgba(212,175,55,0.15)', color: 'primary.main', fontWeight: 700 }}>
                         {m.name[0]}
                       </Avatar>

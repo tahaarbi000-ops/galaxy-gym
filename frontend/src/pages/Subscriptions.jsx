@@ -19,6 +19,9 @@ const statusColor = {
   'en retard': { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
 };
 
+// Style for the "Arriéré" badge (member owes for more than one month)
+const arrieréStyle = { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' };
+
 const isCurrentMonth = (dateStr) => {
   if (!dateStr) return false;
   const d = new Date(dateStr);
@@ -32,6 +35,7 @@ export default function Subscriptions() {
   const [filter, setFilter] = useState('Tous');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
@@ -73,14 +77,20 @@ export default function Subscriptions() {
   };
 
   const handleOpenHistory = async (memberId, memberName) => {
-    try {
-      const response = await Axios.get(`/subscription/history/${memberId}`);
-      setSelectedMember({ name: memberName, records: response.data.subscriptions });
-    } catch (err) {
-      console.error('error');
-      setSelectedMember({ name: memberName, records: [] });
-    }
     setHistoryOpen(true);
+    setHistoryLoading(true);
+    setSelectedMember({ name: memberName, records: [] });
+    try {
+      // Payment-level history (one row per actual payment, from the payment table)
+      const response = await Axios.get(`/subscription/payments/${memberId}`);
+      setSelectedMember({ name: memberName, records: response.data.payments });
+    } catch (err) {
+      console.error(err);
+      setSelectedMember({ name: memberName, records: [] });
+      setToast({ open: true, message: "Erreur lors du chargement de l'historique.", severity: 'error' });
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   return (
@@ -140,7 +150,6 @@ export default function Subscriptions() {
                   <TableRow key={m.id} hover>
                     <TableCell>
                       <Stack direction="row" alignItems="center" spacing={1.5}>
-                        
                         <Typography variant="body2" fontWeight={600}>{m?.member?.name}</Typography>
                       </Stack>
                     </TableCell>
@@ -154,7 +163,7 @@ export default function Subscriptions() {
                       <Typography variant="body2" color="text.secondary">{new Date(m?.date).toLocaleDateString()}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Stack direction="row" spacing={0.75} alignItems="center">
+                      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
                         <Chip
                           label={m.status}
                           size="small"
@@ -166,6 +175,13 @@ export default function Subscriptions() {
                             size="small"
                             variant="outlined"
                             sx={{ borderColor: 'rgba(255,255,255,0.2)', color: 'text.secondary', fontSize: 11 }}
+                          />
+                        )}
+                        {m.unpaidCount > 1 && (
+                          <Chip
+                            label={`Arriéré — ${m.unpaidCount} mois — ${m.totalDue} DT`}
+                            size="small"
+                            sx={{ bgcolor: arrieréStyle.bg, color: arrieréStyle.color, fontWeight: 700, fontSize: 11 }}
                           />
                         )}
                       </Stack>
@@ -217,30 +233,36 @@ export default function Subscriptions() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
-          <List>
-            {selectedMember?.records?.map((h, i) => (
-              <Box key={h.id}>
-                <ListItem disableGutters>
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    <CheckCircleRoundedIcon
-                      fontSize="small"
-                      sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
+          {historyLoading ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+              Chargement...
+            </Typography>
+          ) : (
+            <List>
+              {selectedMember?.records?.map((h, i) => (
+                <Box key={h.id}>
+                  <ListItem disableGutters>
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                      <CheckCircleRoundedIcon
+                        fontSize="small"
+                        sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={`${h.amount} DT — ${h.status}`}
+                      secondary={h.paid_at ? new Date(h.paid_at).toLocaleString() : '—'}
                     />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={`${h.amount} DT — ${h.status}`}
-                    secondary={new Date(h.date).toLocaleDateString()}
-                  />
-                </ListItem>
-                {i < selectedMember.records.length - 1 && <Divider component="li" />}
-              </Box>
-            ))}
-            {(!selectedMember?.records || selectedMember.records.length === 0) && (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                Aucun paiement enregistré.
-              </Typography>
-            )}
-          </List>
+                  </ListItem>
+                  {i < selectedMember.records.length - 1 && <Divider component="li" />}
+                </Box>
+              ))}
+              {(!selectedMember?.records || selectedMember.records.length === 0) && (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                  Aucun paiement enregistré.
+                </Typography>
+              )}
+            </List>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setHistoryOpen(false)} variant="outlined" fullWidth>Fermer</Button>
