@@ -57,6 +57,7 @@ export default function Members() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [category, setCategory] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
@@ -77,7 +78,7 @@ export default function Members() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [isSaving]);
 
   const formik = useFormik({
     initialValues: emptyValues,
@@ -165,6 +166,7 @@ export default function Members() {
     );
 
     try {
+      setIsSaving(true)
       await Axios.patch(`/user/member/${memberId}/status`, { status: newStatus });
       setToast({ open: true, message: 'Statut mis à jour.', severity: 'success' });
     } catch (err) {
@@ -176,6 +178,8 @@ export default function Members() {
         message: err?.response?.data?.message || 'Impossible de mettre à jour le statut.',
         severity: 'error',
       });
+    }finally{
+      setIsSaving(false)
     }
   };
 
