@@ -37,10 +37,9 @@ const validationSchema = Yup.object({
 const statusColor = {
   actif: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
   inactif: { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
-  suspendu: { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' },
 };
 
-const statusOptions = ['actif', 'inactif', 'suspendu'];
+const statusOptions = ['actif', 'inactif'];
 
 const emptyValues = {
   name: '',
@@ -187,9 +186,9 @@ export default function Members() {
     }
   };
 
+  console.log(deleteTarget)
   // --- delete member ---
   const handleOpenDelete = () => {
-    // triggered from the actions menu, uses the currently selected statusTarget
     setDeleteTarget(statusTarget);
     handleCloseStatusMenu();
   };

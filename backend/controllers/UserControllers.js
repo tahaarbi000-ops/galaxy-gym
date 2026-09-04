@@ -240,6 +240,7 @@ exports.DeleteSecretary = async (req,res) => {
         res.status(500).json({message:"server error"})
     }
 }
+
 exports.DeleteTrainer = async (req,res) => {
      try{
         const {id} = req.params
@@ -266,6 +267,34 @@ exports.DeleteTrainer = async (req,res) => {
         res.status(500).json({message:"server error"})
     }
 }
+
+exports.DeleteMember = async (req,res) => {
+     try{
+        const {id} = req.params
+        const userId = req.userId;
+        const member = await Member.findByPk(id)
+        if(!member){
+            res.status(404).json({message:"member not found"})
+        }
+        const user = await User.findByPk(userId)
+           await ActivityLog.create({
+                action:"delete",
+                description:`${user.name} a supprimé le member  ${member.name}`,
+                entity_type:"member",
+                entity_id:id,
+                entity_name:member.name,
+                user_name:user.name,
+                user_role:user.role,
+                user_id:user.id,
+                old_values: {"name":member.name,"phone":member.phone },
+            })
+            member.update({status:"suspendu"})
+            res.json({message:"member deleted"})
+    }catch{
+        res.status(500).json({message:"server error"})
+    }
+}
+
 exports.UpdateTrainer = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
