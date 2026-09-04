@@ -3,7 +3,7 @@ import {
   Box, Typography, Card, Stack, Button, Chip, Table, TableHead, TableRow, TableCell,
   TableBody, TableContainer, Avatar, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, List, ListItem, ListItemIcon, ListItemText, Divider, TextField,
-  InputAdornment, MenuItem, Snackbar, Alert,
+  InputAdornment, MenuItem, Snackbar, Alert,Tooltip
 } from '@mui/material';
 import PaidRoundedIcon from '@mui/icons-material/PaidRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
@@ -11,6 +11,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { Axios } from '../Api/Api';
 
 const statusColor = {
@@ -222,52 +223,79 @@ export default function Subscriptions() {
       </Card>
 
       {/* Dialogue historique des paiements */}
-      <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <ReceiptLongRoundedIcon sx={{ color: 'primary.main' }} />
-            <span>Historique — {selectedMember?.name}</span>
-          </Stack>
-          <IconButton size="small" onClick={() => setHistoryOpen(false)}>
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers>
-          {historyLoading ? (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-              Chargement...
-            </Typography>
-          ) : (
-            <List>
-              {selectedMember?.records?.map((h, i) => (
-                <Box key={h.id}>
-                  <ListItem disableGutters>
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <CheckCircleRoundedIcon
-                        fontSize="small"
-                        sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
-                      />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={`${h.amount} DT — ${h.status}`}
-                      secondary={h.paid_at ? new Date(h.paid_at).toLocaleString() : '—'}
-                    />
-                  </ListItem>
-                  {i < selectedMember.records.length - 1 && <Divider component="li" />}
-                </Box>
-              ))}
-              {(!selectedMember?.records || selectedMember.records.length === 0) && (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                  Aucun paiement enregistré.
-                </Typography>
-              )}
-            </List>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setHistoryOpen(false)} variant="outlined" fullWidth>Fermer</Button>
-        </DialogActions>
-      </Dialog>
+    <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} fullWidth maxWidth="xs">
+  <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <Stack direction="row" alignItems="center" spacing={1}>
+      <ReceiptLongRoundedIcon sx={{ color: 'primary.main' }} />
+      <span>Historique — {selectedMember?.name}</span>
+    </Stack>
+    <IconButton size="small" onClick={() => setHistoryOpen(false)}>
+      <CloseRoundedIcon fontSize="small" />
+    </IconButton>
+  </DialogTitle>
+  <DialogContent dividers>
+    {historyLoading ? (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+        Chargement...
+      </Typography>
+    ) : (
+      <List>
+        {selectedMember?.records?.map((h, i) => {
+          // flag duplicate payments hitting the same subscription
+          const isDuplicate =
+            selectedMember.records.filter((r) => r.subscription_id === h.subscription_id).length > 1;
+
+          return (
+            <Box key={h.id}>
+              <ListItem disableGutters>
+                <ListItemIcon sx={{ minWidth: 36 }}>
+                  <CheckCircleRoundedIcon
+                    fontSize="small"
+                    sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
+                  />
+                </ListItemIcon>
+                <ListItemText
+                  primary={
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <span>
+                        {h.amount} DT —{' '}
+                        {h.subscription_date
+                          ? new Date(h.subscription_date).toLocaleDateString('fr-FR', {
+                              month: 'long',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </span>
+                      {isDuplicate && (
+                        <Tooltip title="Plusieurs paiements liés au même abonnement">
+                          <WarningAmberIcon fontSize="small" sx={{ color: 'warning.main' }} />
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  }
+                  secondary={
+                    h.paid_at
+                      ? `Payé le ${new Date(h.paid_at).toLocaleString('fr-FR')}`
+                      : '—'
+                  }
+                />
+              </ListItem>
+              {i < selectedMember.records.length - 1 && <Divider component="li" />}
+            </Box>
+          );
+        })}
+        {(!selectedMember?.records || selectedMember.records.length === 0) && (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+            Aucun paiement enregistré.
+          </Typography>
+        )}
+      </List>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ p: 2 }}>
+    <Button onClick={() => setHistoryOpen(false)} variant="outlined" fullWidth>Fermer</Button>
+  </DialogActions>
+</Dialog>
 
       <Snackbar
         open={toast.open}
