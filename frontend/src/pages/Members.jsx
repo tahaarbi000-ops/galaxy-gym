@@ -3,7 +3,7 @@ import {
   Box, Typography, Card, Stack, TextField, InputAdornment, Button, Chip,
   Avatar, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, IconButton,
   FormControl, InputLabel, Select, FormHelperText, Menu, ListItemIcon, ListItemText,
-  Snackbar, Alert, ToggleButtonGroup, ToggleButton, Switch, FormControlLabel,
+  Snackbar, Alert, ToggleButtonGroup, ToggleButton, Switch, FormControlLabel, Divider,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
@@ -15,6 +15,7 @@ import CircleRoundedIcon from '@mui/icons-material/CircleRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EventRoundedIcon from '@mui/icons-material/EventRounded';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { Axios } from '../Api/Api';
 import * as Yup from 'yup';
 import { useFormik } from 'formik';
@@ -62,6 +63,9 @@ export default function Members() {
 
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
   const [statusTarget, setStatusTarget] = useState(null);
+
+  // --- delete confirmation state ---
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -183,6 +187,37 @@ export default function Members() {
     }
   };
 
+  // --- delete member ---
+  const handleOpenDelete = () => {
+    // triggered from the actions menu, uses the currently selected statusTarget
+    setDeleteTarget(statusTarget);
+    handleCloseStatusMenu();
+  };
+
+  const handleCloseDelete = () => {
+    setDeleteTarget(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await Axios.delete(`/user/member/${deleteTarget.id}`);
+      setToast({ open: true, message: 'Membre supprimé avec succès.', severity: 'success' });
+      await fetchData();
+    } catch (err) {
+      setToast({
+        open: true,
+        message:
+          err?.response?.data?.message ||
+          err?.response?.data?.errors?.[0] ||
+          'Une erreur est survenue',
+        severity: 'error',
+      });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const filtered = users && users.filter((m) => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === 'Tous' || m?.category?.name === filter;
@@ -294,7 +329,7 @@ export default function Members() {
         </Box>
       </Card>
 
-      {/* Status change menu */}
+      {/* Status change / actions menu */}
       <Menu
         anchorEl={statusMenuAnchor}
         open={Boolean(statusMenuAnchor)}
@@ -312,6 +347,13 @@ export default function Members() {
             <ListItemText sx={{ textTransform: 'capitalize' }}>{s}</ListItemText>
           </MenuItem>
         ))}
+        <Divider />
+        <MenuItem onClick={handleOpenDelete}>
+          <ListItemIcon>
+            <DeleteRoundedIcon fontSize="small" sx={{ color: 'error.main' }} />
+          </ListItemIcon>
+          <ListItemText sx={{ color: 'error.main' }}>Supprimer</ListItemText>
+        </MenuItem>
       </Menu>
 
       {/* Add / Edit dialog */}
@@ -441,6 +483,29 @@ export default function Members() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Delete confirmation dialog — same style as Trainers page */}
+      <Dialog open={Boolean(deleteTarget)} onClose={handleCloseDelete} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Supprimer le membre
+          <IconButton size="small" onClick={handleCloseDelete}>
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            Êtes-vous sûr de vouloir supprimer{' '}
+            <Typography component="span" fontWeight={700} color="text.primary">
+              {deleteTarget?.name}
+            </Typography>{' '}
+            ? Cette action est irréversible.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={handleCloseDelete} color="inherit">Annuler</Button>
+          <Button onClick={handleConfirmDelete} variant="contained" color="error">Supprimer</Button>
+        </DialogActions>
       </Dialog>
 
       <Snackbar
