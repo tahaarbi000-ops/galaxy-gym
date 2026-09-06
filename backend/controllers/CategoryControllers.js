@@ -4,6 +4,7 @@ const { Member, Trainer } = require("../models");
 const sequelize = require("../config/db");
 const ActivityLog = require("../models/ActivityLog");
 const User = require("../models/User");
+const { Op } = require("sequelize");
 
 exports.AddCategory = [
     body("name").notEmpty().withMessage("name required"),
@@ -52,7 +53,13 @@ exports.GetCategories = async (req, res) => {
                 {
                     model: Member,
                     as: "memberCategory",
-                    attributes: []
+                    attributes: [],
+                    where: {
+                        status: {
+                            [Op.ne]: "suspendu" // exclut les membres suspendus
+                        }
+                    },
+                    required: false // important: garde le LEFT JOIN
                 },
                 {
                     model: Trainer,

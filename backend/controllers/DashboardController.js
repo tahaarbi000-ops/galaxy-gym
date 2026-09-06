@@ -22,6 +22,7 @@ exports.Stats = async (req, res) => {
 
         const previousMonthMembers = await Member.count({
             where: {
+                status:"suspendu",
                 createdAt: {
                     [Op.gte]: startPreviousMonth,
                     [Op.lt]: endPreviousMonth,
