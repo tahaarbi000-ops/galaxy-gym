@@ -9,10 +9,11 @@ exports.Stats = async (req, res) => {
         const endCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         const startPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const endPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const totalMembers = await Member.count();
+        const totalMembers = await Member.count({where:{status:"actif"}});
 
         const currentMonthMembers = await Member.count({
             where: {
+                status:"actif",
                 createdAt: {
                     [Op.gte]: startCurrentMonth,
                     [Op.lt]: endCurrentMonth,
@@ -22,7 +23,7 @@ exports.Stats = async (req, res) => {
 
         const previousMonthMembers = await Member.count({
             where: {
-                status:"suspendu",
+                status:"actif",
                 createdAt: {
                     [Op.gte]: startPreviousMonth,
                     [Op.lt]: endPreviousMonth,
@@ -184,6 +185,9 @@ exports.RevenueEvolution = async (req, res) => {
 exports.MembersByCategory = async (req, res) => {
     try {
         const data = await Member.findAll({
+            where:{
+                status:"actif"
+            },
             attributes: [
                 "category_id",
                 [fn("COUNT", col("members.id")), "total"],

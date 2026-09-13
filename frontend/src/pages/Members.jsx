@@ -16,6 +16,7 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EventRoundedIcon from '@mui/icons-material/EventRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import { Axios } from '../Api/Api';
 import * as Yup from 'yup';
 import { useFormik } from 'formik';
@@ -70,6 +71,7 @@ export default function Members() {
   const [editingId, setEditingId] = useState(null);
   const [category, setCategory] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
@@ -250,6 +252,38 @@ export default function Members() {
     }
   };
 
+  // --- download members list ---
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const res = await Axios.get('/user/download/member', { responseType: 'blob' });
+
+      // Try to read the filename from Content-Disposition, fall back to a default
+      const disposition = res.headers?.['content-disposition'] || '';
+      const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      const filename = match?.[1] ? decodeURIComponent(match[1]) : 'membres.xlsx';
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setToast({
+        open: true,
+        message:
+          err?.response?.data?.message ||
+          "Impossible de télécharger la liste des membres.",
+        severity: 'error',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const filtered = users && users.filter((m) => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === 'Tous' || m?.category?.name === filter;
@@ -319,9 +353,19 @@ export default function Members() {
             {users.length} membres enregistrés dans votre salle
           </Typography>
         </Box>
-        <Button variant="contained" onClick={handleOpenAdd} startIcon={<AddRoundedIcon />}>
-          Ajouter un membre
-        </Button>
+        <Stack direction="row" spacing={1.5}>
+          <Button
+            variant="outlined"
+            onClick={handleDownload}
+            startIcon={<DownloadRoundedIcon />}
+            disabled={isDownloading}
+          >
+            {isDownloading ? 'Téléchargement...' : 'Télécharger'}
+          </Button>
+          <Button variant="contained" onClick={handleOpenAdd} startIcon={<AddRoundedIcon />}>
+            Ajouter un membre
+          </Button>
+        </Stack>
       </Stack>
 
       <Card sx={{ p: 2.5 }}>

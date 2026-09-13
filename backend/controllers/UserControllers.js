@@ -6,6 +6,7 @@ const { Member, Payment } = require("../models");
 const Trainer = require("../models/Trainer");
 const bcrypt = require("bcryptjs");
 const ActivityLog = require("../models/ActivityLog");
+const ExcelJS = require("exceljs");
 const { Op } = require("sequelize");
 
 exports.AddMember = [
@@ -481,6 +482,207 @@ exports.UpdateMemberStatus = [
     }
 ];
 
+// ---- shared helpers (module scope, used by both AddMember and UpdateMember) ----
+const INTERVAL_MONTHS = {
+    "monthly": 1,
+    "three_month": 3,
+    "six_month": 6,
+    "yearly": 12,
+};
+
+function addMonths(dateStr, months) {
+    const d = new Date(dateStr);
+    d.setMonth(d.getMonth() + months);
+    return d;
+}
+
+function computeNextPayment(fromDateStr, offerDuration) {
+    const paymentType = offerDuration || "monthly";
+    return paymentType === "yearly"
+        ? addMonths(fromDateStr, 12)
+        : addMonths(fromDateStr, INTERVAL_MONTHS[paymentType] || 1);
+}
+
+exports.UpdateMember = [
+    body("name").notEmpty().withMessage("name required"),
+    body("phone").notEmpty().withMessage("phone required"),
+    body("category_id").notEmpty().withMessage("category required"),
+
+    async (req, res) => {
+        const error = validationResult(req);
+
+        if (!error.isEmpty()) {
+            return res.status(422).json({
+                errors: error.array().map(err => err.msg),
+            });
+        }
+
+        try {
+            const user_id = req.userId;
+            const { id } = req.params;
+
+            const {
+                name,
+                phone,
+                category_id,
+                isPaidCurrentMonth,
+                offer_duration,
+            } = req.body;
+
+            // Get current user
+            const user = await User.findByPk(user_id);
+
+            if (!user) {
+                return res.status(404).json({
+                    message: "user not found",
+                });
+            }
+
+            // Get member
+            const member = await Member.findByPk(id);
+
+            if (!member) {
+                return res.status(404).json({
+                    message: "member not found",
+                });
+            }
+
+            // Get category
+            const category = await Category.findByPk(category_id);
+
+            if (!category) {
+                return res.status(404).json({
+                    message: "category not found",
+                });
+            }
+
+            // Keep old values for activity log
+            const oldValues = {
+                name: member.name,
+                phone: member.phone,
+                category_id: member.category_id,
+            };
+
+            // Update member
+            await member.update({
+                name,
+                phone,
+                category_id,
+            });
+
+            const paymentType = offer_duration || "monthly";
+
+            // Get current subscription
+            const subscription = await Subscription.findOne({
+                where: {
+                    member_id: member.id,
+                },
+                order: [["createdAt", "DESC"]],
+            });
+
+            if (subscription) {
+                // Base the next payment date on the subscription's existing
+                // next_payment_at if present, else on today. This avoids
+                // silently resetting the cycle anchor on every edit unless
+                // the duration actually changed.
+                const durationChanged = subscription.payment_type !== paymentType;
+                const baseDateStr = durationChanged || !subscription.next_payment_at
+                    ? new Date().toISOString().split('T')[0]
+                    : new Date(subscription.next_payment_at).toISOString().split('T')[0];
+
+                const nextPayment = durationChanged
+                    ? computeNextPayment(new Date().toISOString().split('T')[0], paymentType)
+                    : subscription.next_payment_at;
+
+                // Update subscription amount / payment type if changed
+                await subscription.update({
+                    amount: category.price,
+                    status: isPaidCurrentMonth ? "payé" : "non payé",
+                    payment_type: paymentType,
+                    next_payment_at: nextPayment,
+                });
+
+                // Payment handling
+                const payment = await Payment.findOne({
+                    where: {
+                        subscription_id: subscription.id,
+                    },
+                });
+
+                if (isPaidCurrentMonth) {
+                    // Create payment if it doesn't exist
+                    if (!payment) {
+                        await Payment.create({
+                            amount: category.price,
+                            subscription_id: subscription.id,
+                        });
+                    } else {
+                        // Update existing payment
+                        await payment.update({
+                            amount: category.price,
+                        });
+                    }
+                } else {
+                    // If marked as unpaid, remove existing payment
+                    if (payment) {
+                        await payment.destroy();
+                    }
+                }
+            } else {
+                // If member doesn't have a subscription, create one
+                const today = new Date().toISOString().split('T')[0];
+                const nextPayment = computeNextPayment(today, paymentType);
+
+                const newSubscription = await Subscription.create({
+                    amount: category.price,
+                    member_id: member.id,
+                    status: isPaidCurrentMonth ? "payé" : "non payé",
+                    payment_type: paymentType,
+                    next_payment_at: nextPayment,
+                });
+
+                if (isPaidCurrentMonth) {
+                    await Payment.create({
+                        amount: category.price,
+                        subscription_id: newSubscription.id,
+                    });
+                }
+            }
+
+            // Activity log
+            await ActivityLog.create({
+                action: "update",
+                description: `${user.name} a modifié le membre ${name}`,
+                entity_type: "member",
+                entity_id: member.id,
+                entity_name: name,
+                user_name: user.name,
+                user_role: user.role,
+                user_id: user.id,
+                old_values: oldValues,
+                new_values: {
+                    name,
+                    phone,
+                    category_id,
+                    isPaidCurrentMonth,
+                    payment_type: paymentType,
+                },
+            });
+
+            return res.status(200).json({
+                message: "member updated",
+            });
+
+        } catch (err) {
+            console.log(err);
+
+            return res.status(500).json({
+                message: "server error",
+            });
+        }
+    },
+];
+
 exports.UpdateMember = [
     body("name").notEmpty().withMessage("name required"),
     body("phone").notEmpty().withMessage("phone required"),
@@ -637,3 +839,57 @@ exports.UpdateMember = [
     },
 ];
 
+exports.DownloadMember = async (req, res) => {
+    try {
+        const members = await Member.findAll({
+            include: [
+                { model: Category, as: "category", attributes: ["name"] },
+                { model: Subscription, as: "subscription", attributes: ["payment_type"] },
+            ],
+        });
+        const paymentTypeLabels = {
+        monthly: "Mensuel",
+        three_month: "Trimestriel",
+        six_month: "Semestriel",
+        yearly: "Annuel",
+        };
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet("Members");
+
+        sheet.columns = [
+            { header: "Nom", key: "firstName", width: 20 },
+            { header: "Prénom", key: "lastName", width: 20 },
+            { header: "Téléphone", key: "phone", width: 15 },
+            { header: "Catégorie", key: "category", width: 20 },
+            { header: "Date d'inscription", key: "joined_at", width: 15 },
+            { header: "Type de paiement", key: "payment_type", width: 15 },
+        ];
+
+        members.forEach((member) => {
+            const [firstName, ...rest] = (member.name || "").trim().split(" ");
+            sheet.addRow({
+                firstName,
+                lastName: rest.join(" "),
+                phone: member.phone,
+                category: member.category ? member.category.name : "",
+                joined_at: member.joined_at,
+                payment_type: member.subscription
+                ? paymentTypeLabels[member.subscription.payment_type] || ""
+                : "",
+            });
+        });
+
+        res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader("Content-Disposition", "attachment; filename=members.xlsx");
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to export members" });
+    }
+};
