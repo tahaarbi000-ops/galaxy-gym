@@ -34,12 +34,22 @@ const validationSchema = Yup.object({
   }),
 });
 
+// Added 'suspendu' as its own visual state (amber/orange-red tone, distinct from
+// inactif's yellow) so it never gets visually confused with actif or inactif.
 const statusColor = {
   actif: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
   inactif: { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
+  suspendu: { bg: 'rgba(240,98,98,0.15)', color: '#F06262' },
 };
 
-const statusOptions = ['actif', 'inactif'];
+const statusOptions = ['actif', 'inactif', 'suspendu'];
+
+// Filter tabs: 'Tous' shows everything, the rest isolate a single status
+// so suspendu members are never mixed in with actif by default.
+const statusFilters = [
+  { value: 'Tous', label: 'Tous' },
+  { value: 'suspendu', label: 'Suspendus' },
+];
 
 const emptyValues = {
   name: '',
@@ -48,11 +58,13 @@ const emptyValues = {
   memberType: 'nouveau',
   joinDate: '',
   isPaidCurrentMonth: false,
+  offer_duration: '',
 };
 
 export default function Members() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Tous');
+  const [statusFilter, setStatusFilter] = useState('Tous');
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -65,6 +77,9 @@ export default function Members() {
 
   // --- delete confirmation state ---
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // --- réinscription confirmation state (suspendu -> actif) ---
+  const [reinscribeTarget, setReinscribeTarget] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -101,6 +116,9 @@ export default function Members() {
           if (values.memberType === 'nouveau') {
             delete payload.joinDate;
             delete payload.isPaidCurrentMonth;
+          }
+          if (!payload.offer_duration) {
+            delete payload.offer_duration;
           }
           await Axios.post('/user/member', payload);
           setToast({ open: true, message: 'Nouveau membre ajouté avec succès.', severity: 'success' });
@@ -159,9 +177,9 @@ export default function Members() {
     setStatusTarget(null);
   };
 
-  const handleChangeStatus = async (newStatus) => {
-    const memberId = statusTarget.id;
-    const previousStatus = statusTarget.status;
+  const handleChangeStatus = async (newStatus, member = statusTarget) => {
+    const memberId = member.id;
+    const previousStatus = member.status;
     handleCloseStatusMenu();
 
     setUsers((prev) =>
@@ -186,7 +204,6 @@ export default function Members() {
     }
   };
 
-  console.log(deleteTarget)
   // --- delete member ---
   const handleOpenDelete = () => {
     setDeleteTarget(statusTarget);
@@ -195,6 +212,22 @@ export default function Members() {
 
   const handleCloseDelete = () => {
     setDeleteTarget(null);
+  };
+
+  // --- réinscrire member (suspendu -> actif), behind a confirmation modal ---
+  const handleOpenReinscribe = () => {
+    setReinscribeTarget(statusTarget);
+    handleCloseStatusMenu();
+  };
+
+  const handleCloseReinscribe = () => {
+    setReinscribeTarget(null);
+  };
+
+  const handleConfirmReinscribe = async () => {
+    if (!reinscribeTarget) return;
+    await handleChangeStatus('actif', reinscribeTarget);
+    setReinscribeTarget(null);
   };
 
   const handleConfirmDelete = async () => {
@@ -220,8 +253,15 @@ export default function Members() {
   const filtered = users && users.filter((m) => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === 'Tous' || m?.category?.name === filter;
-    return matchSearch && matchFilter;
+    const matchStatus = statusFilter === 'Tous' ? m?.status === 'actif' : m?.status === statusFilter;
+    return matchSearch && matchFilter && matchStatus;
   });
+
+  // Counts per status, shown as small badges on the filter tabs
+  const statusCounts = users.reduce((acc, m) => {
+    acc[m.status] = (acc[m.status] || 0) + 1;
+    return acc;
+  }, {});
 
   const columns = [
     { field: 'name', headerName: 'Membre', flex: 1 },
@@ -231,8 +271,8 @@ export default function Members() {
       valueGetter: (value, row) => row.category?.name || '',
     },
     {
-      field: 'createdAt', headerName: "Date d'inscription", flex: 0.9, minWidth: 140,
-      valueFormatter: (value) => new Date(value).toLocaleDateString('fr-FR'),
+      field: 'joined_at', headerName: "Date d'inscription", flex: 0.9, minWidth: 140,
+      valueFormatter: (value) => new Date(value)?.toLocaleDateString('fr-FR'),
     },
     {
       field: 'status', headerName: 'Statut', flex: 0.8, minWidth: 120,
@@ -261,6 +301,8 @@ export default function Members() {
 
   const categories = ['Tous', ...new Set(category.map((c) => c.name))];
 
+  const selectedCategory = category.find((c) => c.id === formik.values.category_id);
+
   return (
     <Box sx={{ width: '100%' }}>
       <Stack
@@ -283,6 +325,36 @@ export default function Members() {
       </Stack>
 
       <Card sx={{ p: 2.5 }}>
+        {/* Status filter — keeps suspendu isolated from actif instead of
+            lumping every status into one dropdown */}
+        <ToggleButtonGroup
+          value={statusFilter}
+          exclusive
+          size="small"
+          onChange={(e, val) => val && setStatusFilter(val)}
+          sx={{ mb: 2.5, flexWrap: 'wrap' }}
+        >
+          {statusFilters.map((f) => (
+            <ToggleButton key={f.value} value={f.value} sx={{ px: 2, textTransform: 'none' }}>
+              {f.label}
+              {f.value !== 'Tous' && (
+                <Chip
+                  label={statusCounts[f.value] || 0}
+                  size="small"
+                  sx={{
+                    ml: 1,
+                    height: 18,
+                    fontSize: 11,
+                    bgcolor: statusColor[f.value]?.bg,
+                    color: statusColor[f.value]?.color,
+                    fontWeight: 700,
+                  }}
+                />
+              )}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2.5 }}>
           <TextField
             placeholder="Rechercher un membre..."
@@ -334,25 +406,38 @@ export default function Members() {
         open={Boolean(statusMenuAnchor)}
         onClose={handleCloseStatusMenu}
       >
-        {statusOptions.map((s) => (
-          <MenuItem
-            key={s}
-            onClick={() => handleChangeStatus(s)}
-            disabled={statusTarget?.status === s}
-          >
+        {statusTarget?.status === 'suspendu' ? (
+          <MenuItem onClick={handleOpenReinscribe}>
             <ListItemIcon>
-              <CircleRoundedIcon fontSize="small" sx={{ color: statusColor[s].color }} />
+              <CircleRoundedIcon fontSize="small" sx={{ color: statusColor.actif.color }} />
             </ListItemIcon>
-            <ListItemText sx={{ textTransform: 'capitalize' }}>{s}</ListItemText>
+            <ListItemText>Réinscrire</ListItemText>
           </MenuItem>
-        ))}
-        <Divider />
-        <MenuItem onClick={handleOpenDelete}>
-          <ListItemIcon>
-            <DeleteRoundedIcon fontSize="small" sx={{ color: 'error.main' }} />
-          </ListItemIcon>
-          <ListItemText sx={{ color: 'error.main' }}>Supprimer</ListItemText>
-        </MenuItem>
+        ) : (
+          statusOptions.map((s) => (
+            <MenuItem
+              key={s}
+              onClick={() => handleChangeStatus(s)}
+              disabled={statusTarget?.status === s}
+            >
+              <ListItemIcon>
+                <CircleRoundedIcon fontSize="small" sx={{ color: statusColor[s].color }} />
+              </ListItemIcon>
+              <ListItemText sx={{ textTransform: 'capitalize' }}>{s}</ListItemText>
+            </MenuItem>
+          ))
+        )}
+        {statusTarget?.status !== 'suspendu' && (
+          <>
+            <Divider />
+            <MenuItem onClick={handleOpenDelete}>
+              <ListItemIcon>
+                <DeleteRoundedIcon fontSize="small" sx={{ color: 'error.main' }} />
+              </ListItemIcon>
+              <ListItemText sx={{ color: 'error.main' }}>Supprimer</ListItemText>
+            </MenuItem>
+          </>
+        )}
       </Menu>
 
       {/* Add / Edit dialog */}
@@ -405,7 +490,10 @@ export default function Members() {
                   value={formik.values.category_id}
                   name="category_id"
                   label="Catégorie"
-                  onChange={formik.handleChange}
+                  onChange={(e) => {
+                    formik.handleChange(e);
+                    formik.setFieldValue('offer_duration', '');
+                  }}
                 >
                   {category.map((c) => (
                     <MenuItem key={c.id} value={c.id}>
@@ -415,6 +503,30 @@ export default function Members() {
                 </Select>
                 <FormHelperText>{formik.touched.category_id && formik.errors.category_id}</FormHelperText>
               </FormControl>
+
+              {selectedCategory?.has_offer && selectedCategory?.offers && (
+                <FormControl fullWidth>
+                  <InputLabel>Offre (optionnel)</InputLabel>
+                  <Select
+                    value={formik.values.offer_duration}
+                    name="offer_duration"
+                    label="Offre (optionnel)"
+                    onChange={formik.handleChange}
+                  >
+                    <MenuItem value="">Aucune offre</MenuItem>
+                    <MenuItem value="three_month">
+                      3 mois - {selectedCategory.offers.three_month_amount} DT
+                    </MenuItem>
+                    <MenuItem value="six_month">
+                      6 mois - {selectedCategory.offers.six_month_amount} DT
+                    </MenuItem>
+                    <MenuItem value="yearly">
+                      Annuel - {selectedCategory.offers.yearly_amount} DT
+                    </MenuItem>
+                  </Select>
+                  <FormHelperText>Optionnel — laissez sur "Aucune offre" pour un tarif mensuel classique.</FormHelperText>
+                </FormControl>
+              )}
 
               {/* Old/new member toggle — creation only */}
               {!editingId && (
@@ -504,6 +616,33 @@ export default function Members() {
         <DialogActions sx={{ p: 2.5 }}>
           <Button onClick={handleCloseDelete} color="inherit">Annuler</Button>
           <Button onClick={handleConfirmDelete} variant="contained" color="error">Supprimer</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Réinscription confirmation dialog (suspendu -> actif) */}
+      <Dialog open={Boolean(reinscribeTarget)} onClose={handleCloseReinscribe} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Réinscrire le membre
+          <IconButton size="small" onClick={handleCloseReinscribe}>
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            Êtes-vous sûr de vouloir réinscrire{' '}
+            <Typography component="span" fontWeight={700} color="text.primary">
+              {reinscribeTarget?.name}
+            </Typography>
+            {' '}? Son statut passera à{' '}
+            <Typography component="span" fontWeight={700} sx={{ color: statusColor.actif.color }}>
+              actif
+            </Typography>
+            .
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={handleCloseReinscribe} color="inherit">Annuler</Button>
+          <Button onClick={handleConfirmReinscribe} variant="contained" color="success">Réinscrire</Button>
         </DialogActions>
       </Dialog>
 

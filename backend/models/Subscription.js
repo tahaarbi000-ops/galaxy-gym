@@ -24,6 +24,13 @@ const Subscription = sequelize.define("subscriptions",{
         allowNull:false,
         defaultValue:"payé"
     },
+     payment_type:{
+        type:DataTypes.ENUM("monthly","three_month","six_month","yearly"),
+        defaultValue:"monthly"
+    },
+    next_payment_at: {
+    type: DataTypes.DATEONLY,
+    },
     member_id:{
         type:DataTypes.BIGINT,
         allowNull:false,

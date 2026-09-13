@@ -23,5 +23,9 @@ const Category = sequelize.define("categories",{
         type: DataTypes.ENUM("active", "inactive"),
         defaultValue: "active",
     },
+    has_offer: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
 })
 module.exports = Category;

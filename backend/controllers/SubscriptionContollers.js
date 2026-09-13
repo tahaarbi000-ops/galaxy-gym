@@ -8,6 +8,11 @@ const User = require("../models/User");
 
 exports.GetSubscription = async (req, res) => {
   try {
+    const { page = 1, limit = 20, search = "", status = "" } = req.query;
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+
     const subscriptions = await Subscription.findAll({
       include: [
         {
@@ -23,12 +28,12 @@ exports.GetSubscription = async (req, res) => {
           ],
         },
       ],
-      order: [["date", "DESC"]], // newest first
+      order: [["date", "DESC"]],
     });
 
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-indexed
+    const currentMonth = now.getMonth();
     const startOfMonth = new Date(currentYear, currentMonth, 1);
 
     const isCurrentMonth = (date) => {
@@ -36,7 +41,6 @@ exports.GetSubscription = async (req, res) => {
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     };
 
-    // Group everything by member first
     const byMember = new Map();
 
     for (const sub of subscriptions) {
@@ -45,13 +49,13 @@ exports.GetSubscription = async (req, res) => {
         byMember.set(memberId, {
           currentMonth: null,
           lastPast: null,
-          unpaid: [], // every unpaid record, current or past
+          unpaid: [],
         });
       }
       const entry = byMember.get(memberId);
 
       if (isCurrentMonth(sub.date)) {
-        if (!entry.currentMonth) entry.currentMonth = sub; // most recent (desc order)
+        if (!entry.currentMonth) entry.currentMonth = sub;
       } else if (new Date(sub.date) < startOfMonth) {
         if (!entry.lastPast) entry.lastPast = sub;
       }
@@ -61,7 +65,7 @@ exports.GetSubscription = async (req, res) => {
       }
     }
 
-    const result = [];
+    let result = [];
     for (const entry of byMember.values()) {
       const base = entry.currentMonth || entry.lastPast;
       if (!base) continue;
@@ -73,13 +77,33 @@ exports.GetSubscription = async (req, res) => {
         ...base.toJSON(),
         unpaidCount,
         totalDue,
-        // true when there's unpaid debt from months OTHER than the one being shown as `base`
         hasPastDebt: entry.unpaid.some((s) => s.id !== base.id),
       });
     }
 
-    return res.json({ message: "all subscriptions", subscriptions: result });
+    // Filter by member name
+    if (search) {
+      const term = search.toLowerCase();
+      result = result.filter((r) => r.member?.name?.toLowerCase().includes(term));
+    }
+
+    // Filter by status
+    if (status) {
+      result = result.filter((r) => r.status === status);
+    }
+
+    const total = result.length;
+    const totalPages = Math.max(Math.ceil(total / limitNum), 1);
+    const offset = (pageNum - 1) * limitNum;
+    const paginated = result.slice(offset, offset + limitNum);
+
+    return res.json({
+      message: "all subscriptions",
+      subscriptions: paginated,
+      pagination: { total, page: pageNum, limit: limitNum, totalPages },
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "server error" });
   }
 };
@@ -98,11 +122,24 @@ exports.History = async (req, res) => {
   }
 };
 
+const PAYMENT_TYPE_MONTHS = {
+  monthly: 1,
+  three_month: 3,
+  six_month: 6,
+  yearly: 12,
+};
+
+function computeNextPaymentDate(fromDate, paymentType) {
+  const months = PAYMENT_TYPE_MONTHS[paymentType] || 1;
+  const next = new Date(fromDate.getFullYear(), fromDate.getMonth() + months, fromDate.getDate());
+  return next;
+}
+
 exports.Pay = async (req, res) => {
   try {
     const userId = req.userId;
     const { id } = req.params; // member_id
-    const { amount, method, subscription_id } = req.body;
+    const { amount, subscription_id, payment_type } = req.body;
 
     const member = await Member.findByPk(id);
     if (!member) {
@@ -136,20 +173,24 @@ exports.Pay = async (req, res) => {
       });
     }
 
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
     let paidAmount = amount;
+    let previousStatus;
+
+    // payment_type resolution: explicit body value wins, otherwise keep
+    // whatever the existing subscription already has, otherwise default
+    // to the model default ("monthly") when creating a brand-new record.
+    const resolvedPaymentType =
+      payment_type || (subscription && subscription.payment_type) || "monthly";
 
     if (subscription) {
       // Existing unpaid record (current month, past month, or Arriéré) -> mark it paid
-      const oldStatus = subscription.status;
+      previousStatus = subscription.status;
       subscription.status = "payé";
       if (amount) subscription.amount = amount;
+      if (payment_type) subscription.payment_type = payment_type;
+      subscription.next_payment_at = computeNextPaymentDate(now, resolvedPaymentType);
       await subscription.save();
       paidAmount = amount || subscription.amount;
-
-      var previousStatus = oldStatus;
     } else {
       // Truly nothing unpaid anywhere for this member -> create a fresh
       // paid record for the current month (e.g. paying ahead of schedule).
@@ -161,9 +202,11 @@ exports.Pay = async (req, res) => {
         date: now,
         amount,
         status: "payé",
+        payment_type: resolvedPaymentType,
+        next_payment_at: computeNextPaymentDate(now, resolvedPaymentType),
       });
       paidAmount = amount;
-      var previousStatus = "non payé";
+      previousStatus = "non payé";
     }
 
     // Log this payment in the payment table
@@ -199,7 +242,7 @@ exports.Pay = async (req, res) => {
       user_role: user.role,
       user_id: user.id,
       old_values: { status: previousStatus },
-      new_values: { status: "payé" },
+      new_values: { status: "payé", payment_type: resolvedPaymentType, next_payment_at: fullSubscription.next_payment_at },
     });
 
     return res.json({ message: "payment recorded", subscription: fullSubscription });
@@ -208,6 +251,8 @@ exports.Pay = async (req, res) => {
     res.status(500).json({ message: "server error" });
   }
 };
+
+
 exports.GetPayments = async (req, res) => {
   try {
     const { id } = req.params; // member_id

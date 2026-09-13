@@ -8,6 +8,8 @@ import {
   IconButton,
   Divider,
   Paper,
+  Button,
+  CircularProgress,
 } from '@mui/material';
 import { IoAddCircleOutline } from "react-icons/io5";
 import { FiEdit } from "react-icons/fi";
@@ -27,7 +29,6 @@ const ACTION_CONFIG = {
   login: { icon: LuLogIn, color: '#9E9E9E', label: 'Connexion' },
 };
 
-// Must match the lowercase entity_type values your API actually returns
 const ENTITY_TYPES = ['member', 'trainer', 'category', 'subscription', 'user'];
 const ENTITY_LABELS = {
   member: 'Membre',
@@ -36,6 +37,8 @@ const ENTITY_LABELS = {
   subscription: 'Abonnement',
   user: 'Secrétariat',
 };
+
+const PAGE_SIZE = 20;
 
 // -----------------------------------------------------------------------
 // Helpers
@@ -64,7 +67,7 @@ function formatFull(dateStr) {
 function groupByDay(logs) {
   const groups = {};
   logs.forEach((log) => {
-    const d = new Date(log.createdAt); // fixed: backend sends createdAt, not created_at
+    const d = new Date(log.createdAt);
     const key = d.toDateString();
     if (!groups[key]) groups[key] = [];
     groups[key].push(log);
@@ -115,7 +118,7 @@ function ActivityEntry({ log }) {
 
       {/* Content */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack direction="row" style={{justifyContent:"space-between",alignItems:"flex-start",gap:1}}>
+        <Stack direction="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
           <Typography sx={{ color: '#EDEDED', fontSize: '0.9rem', lineHeight: 1.5 }}>
             {log.description}
           </Typography>
@@ -127,7 +130,7 @@ function ActivityEntry({ log }) {
           </Typography>
         </Stack>
 
-        <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} style={{alignItems:"center"}}>
+        <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} style={{ alignItems: "center" }}>
           <Chip
             label={log.user_role === 'admin' ? 'Admin' : 'Secrétariat'}
             size="small"
@@ -216,32 +219,46 @@ export default function ActivityLog() {
   const [entityFilter, setEntityFilter] = useState(null);
   const [actionFilter, setActionFilter] = useState(null);
   const [activity, setActivity] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (pageToFetch = 1) => {
+    setLoading(true);
     try {
-      const response = await Axios.get('/activity');
+      const response = await Axios.get('/activity', {
+        params: {
+          page: pageToFetch,
+          limit: PAGE_SIZE,
+          role: roleFilter || undefined,
+          entity_type: entityFilter || undefined,
+          action: actionFilter || undefined,
+        },
+      });
       setActivity(response.data.activity);
+      setTotalPages(response.data.pagination?.totalPages || 1);
     } catch (err) {
       console.error('Failed to fetch activity log', err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Refetch from page 1 whenever a filter changes
   useEffect(() => {
-    fetchData();
-  }, []);
+    setPage(1);
+    fetchData(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleFilter, entityFilter, actionFilter]);
 
-  const filtered = useMemo(() => {
-    return activity
-      .filter((log) => {
-        if (roleFilter && log.user_role !== roleFilter) return false;
-        if (entityFilter && log.entity_type !== entityFilter) return false;
-        if (actionFilter && log.action !== actionFilter) return false;
-        return true;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // fixed: createdAt
-  }, [activity, roleFilter, entityFilter, actionFilter]); // fixed: activity added as dependency
+  // Fetch when page changes (but not on the filter-triggered reset above)
+  useEffect(() => {
+    if (page === 1) return;
+    fetchData(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
-  const grouped = groupByDay(filtered);
+  const grouped = useMemo(() => groupByDay(activity), [activity]);
   const dayKeys = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
 
   const toggle = (current, setter, value) => setter(current === value ? null : value);
@@ -325,13 +342,19 @@ export default function ActivityLog() {
           p: { xs: 2, md: 3 },
         }}
       >
-        {dayKeys.length === 0 && (
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress size={22} sx={{ color: '#D4AF37' }} />
+          </Box>
+        )}
+
+        {!loading && dayKeys.length === 0 && (
           <Typography sx={{ color: '#6E6E6E', fontSize: '0.85rem', textAlign: 'center', py: 4 }}>
             Aucune activité récente.
           </Typography>
         )}
 
-        {dayKeys.map((key, idx) => (
+        {!loading && dayKeys.map((key, idx) => (
           <Box key={key} sx={{ mb: idx < dayKeys.length - 1 ? 2 : 0 }}>
             <Typography
               sx={{
@@ -353,6 +376,31 @@ export default function ActivityLog() {
             )}
           </Box>
         ))}
+
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <Stack direction="row" spacing={1.5} style={{justifyContent:"center",alignItems:"center"}} sx={{ mt: 3 }}>
+            <Button
+              size="small"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              sx={{ color: '#D4AF37', minWidth: 90 }}
+            >
+              Précédent
+            </Button>
+            <Typography sx={{ color: '#8A8A8A', fontSize: '0.8rem' }}>
+              Page {page} / {totalPages}
+            </Typography>
+            <Button
+              size="small"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+              sx={{ color: '#D4AF37', minWidth: 90 }}
+            >
+              Suivant
+            </Button>
+          </Stack>
+        )}
       </Paper>
     </Box>
   );

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   Box, Typography, Card, Stack, Button, Chip, Table, TableHead, TableRow, TableCell,
-  TableBody, TableContainer, Avatar, IconButton, Dialog, DialogTitle, DialogContent,
+  TableBody, TableContainer, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, List, ListItem, ListItemIcon, ListItemText, Divider, TextField,
-  InputAdornment, MenuItem, Snackbar, Alert,Tooltip
+  InputAdornment, MenuItem, Snackbar, Alert, Tooltip, CircularProgress
 } from '@mui/material';
 import PaidRoundedIcon from '@mui/icons-material/PaidRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
@@ -14,14 +14,28 @@ import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { Axios } from '../Api/Api';
 
+const paymentTypeLabels = {
+  monthly: "Mensuel",
+  three_month: "Trimestriel",
+  six_month: "Semestriel",
+  yearly: "Annuel",
+};
+
 const statusColor = {
   payé: { bg: 'rgba(62,213,152,0.15)', color: '#3ED598' },
   'non payé': { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' },
   'en retard': { bg: 'rgba(245,184,93,0.15)', color: '#F5B85D' },
 };
 
-// Style for the "Arriéré" badge (member owes for more than one month)
 const arrieréStyle = { bg: 'rgba(239,90,111,0.15)', color: '#EF5A6F' };
+
+const STATUS_MAP = {
+  'Payé': 'payé',
+  'Non payé': 'non payé',
+  'En retard': 'en retard',
+};
+
+const PAGE_SIZE = 20;
 
 const isCurrentMonth = (dateStr) => {
   if (!dateStr) return false;
@@ -34,41 +48,60 @@ export default function Subscriptions() {
   const [members, setMembers] = useState();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Tous');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
-  useEffect(() => {
-    const subscriptionData = async () => {
-      try {
-        const response = await Axios.get('/subscription');
-        setMembers(response.data.subscriptions);
-      } catch {
-        console.error('error');
-      }
-    };
-    subscriptionData();
-  }, []);
+  const fetchSubscriptions = async (pageToFetch = 1) => {
+    setLoading(true);
+    try {
+      const response = await Axios.get('/subscription', {
+        params: {
+          page: pageToFetch,
+          limit: PAGE_SIZE,
+          search: search || undefined,
+          status: STATUS_MAP[filter] || undefined,
+        },
+      });
+      setMembers(response.data.subscriptions);
+      setTotalPages(response.data.pagination?.totalPages || 1);
+    } catch {
+      console.error('error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filtered =
-    members &&
-    members.filter((m) => {
-      const matchSearch = m?.member?.name?.toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === 'Tous' || m.status === filter.toLowerCase();
-      return matchSearch && matchFilter;
-    });
+  // Debounce search input, reset to page 1 on search/filter change
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      fetchSubscriptions(1);
+    }, 350);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filter]);
+
+  // Fetch when page changes
+  useEffect(() => {
+    if (page === 1) return;
+    fetchSubscriptions(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   const handlePay = async (m) => {
     try {
-      // Adjust this endpoint/payload to match your actual "pay" route
       await Axios.post(`/subscription/pay/${m.member.id}`, {
         amount: m.amount,
         method: 'Espèces',
       });
 
-      const response = await Axios.get('/subscription');
-      setMembers(response.data.subscriptions);
+      await fetchSubscriptions(page);
 
       setToast({ open: true, message: 'Paiement enregistré avec succès.', severity: 'success' });
     } catch (err) {
@@ -82,7 +115,6 @@ export default function Subscriptions() {
     setHistoryLoading(true);
     setSelectedMember({ name: memberName, records: [] });
     try {
-      // Payment-level history (one row per actual payment, from the payment table)
       const response = await Axios.get(`/subscription/payments/${memberId}`);
       setSelectedMember({ name: memberName, records: response.data.payments });
     } catch (err) {
@@ -140,12 +172,21 @@ export default function Subscriptions() {
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Formule</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Montant</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Échéance</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Type de abonnement</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Statut</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {members && filtered.map((m) => {
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
+                    <CircularProgress size={22} />
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {!loading && members && members.map((m) => {
                 const current = isCurrentMonth(m.date);
                 return (
                   <TableRow key={m.id} hover>
@@ -154,15 +195,25 @@ export default function Subscriptions() {
                         <Typography variant="body2" fontWeight={600}>{m?.member?.name}</Typography>
                       </Stack>
                     </TableCell>
+
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">{m?.member?.category?.name}</Typography>
                     </TableCell>
+
                     <TableCell>
                       <Typography variant="body2" fontWeight={700}>{m.amount} DT</Typography>
                     </TableCell>
+
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">{new Date(m?.date).toLocaleDateString()}</Typography>
+                      <Typography variant="body2" color="text.secondary">{new Date(m?.next_payment_at)?.toLocaleDateString()}</Typography>
                     </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={700}>
+                        {paymentTypeLabels[m?.payment_type] || m?.payment_type}
+                      </Typography>
+                    </TableCell>
+
                     <TableCell>
                       <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
                         <Chip
@@ -187,6 +238,7 @@ export default function Subscriptions() {
                         )}
                       </Stack>
                     </TableCell>
+
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
                         <Button
@@ -210,9 +262,10 @@ export default function Subscriptions() {
                   </TableRow>
                 );
               })}
-              {filtered && filtered.length === 0 && (
+
+              {!loading && members && members.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
                     <Typography variant="body2" color="text.secondary">Aucun membre trouvé.</Typography>
                   </TableCell>
                 </TableRow>
@@ -220,82 +273,102 @@ export default function Subscriptions() {
             </TableBody>
           </Table>
         </TableContainer>
+
+        {!loading && totalPages > 1 && (
+          <Stack direction="row" spacing={1.5} style={{justifyContent:"center",alignItems:"center"}} sx={{ mt: 3 }}>
+            <Button
+              size="small"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+            >
+              Précédent
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              Page {page} / {totalPages}
+            </Typography>
+            <Button
+              size="small"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+            >
+              Suivant
+            </Button>
+          </Stack>
+        )}
       </Card>
 
-      {/* Dialogue historique des paiements */}
-    <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} fullWidth maxWidth="xs">
-  <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-    <Stack direction="row" alignItems="center" spacing={1}>
-      <ReceiptLongRoundedIcon sx={{ color: 'primary.main' }} />
-      <span>Historique — {selectedMember?.name}</span>
-    </Stack>
-    <IconButton size="small" onClick={() => setHistoryOpen(false)}>
-      <CloseRoundedIcon fontSize="small" />
-    </IconButton>
-  </DialogTitle>
-  <DialogContent dividers>
-    {historyLoading ? (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-        Chargement...
-      </Typography>
-    ) : (
-      <List>
-        {selectedMember?.records?.map((h, i) => {
-          // flag duplicate payments hitting the same subscription
-          const isDuplicate =
-            selectedMember.records.filter((r) => r.subscription_id === h.subscription_id).length > 1;
+      <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <ReceiptLongRoundedIcon sx={{ color: 'primary.main' }} />
+            <span>Historique — {selectedMember?.name}</span>
+          </Stack>
+          <IconButton size="small" onClick={() => setHistoryOpen(false)}>
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {historyLoading ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+              Chargement...
+            </Typography>
+          ) : (
+            <List>
+              {selectedMember?.records?.map((h, i) => {
+                const isDuplicate =
+                  selectedMember.records.filter((r) => r.subscription_id === h.subscription_id).length > 1;
 
-          return (
-            <Box key={h.id}>
-              <ListItem disableGutters>
-                <ListItemIcon sx={{ minWidth: 36 }}>
-                  <CheckCircleRoundedIcon
-                    fontSize="small"
-                    sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
-                  />
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <span>
-                        {h.amount} DT —{' '}
-                        {h.subscription_date
-                          ? new Date(h.subscription_date).toLocaleDateString('fr-FR', {
-                              month: 'long',
-                              year: 'numeric',
-                            })
-                          : '—'}
-                      </span>
-                      {isDuplicate && (
-                        <Tooltip title="Plusieurs paiements liés au même abonnement">
-                          <WarningAmberIcon fontSize="small" sx={{ color: 'warning.main' }} />
-                        </Tooltip>
-                      )}
-                    </Stack>
-                  }
-                  secondary={
-                    h.paid_at
-                      ? `Payé le ${new Date(h.paid_at).toLocaleString('fr-FR')}`
-                      : '—'
-                  }
-                />
-              </ListItem>
-              {i < selectedMember.records.length - 1 && <Divider component="li" />}
-            </Box>
-          );
-        })}
-        {(!selectedMember?.records || selectedMember.records.length === 0) && (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-            Aucun paiement enregistré.
-          </Typography>
-        )}
-      </List>
-    )}
-  </DialogContent>
-  <DialogActions sx={{ p: 2 }}>
-    <Button onClick={() => setHistoryOpen(false)} variant="outlined" fullWidth>Fermer</Button>
-  </DialogActions>
-</Dialog>
+                return (
+                  <Box key={h.id}>
+                    <ListItem disableGutters>
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <CheckCircleRoundedIcon
+                          fontSize="small"
+                          sx={{ color: h.status === 'payé' ? 'success.main' : 'text.disabled' }}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <span>
+                              {h.amount} DT —{' '}
+                              {h.subscription_date
+                                ? new Date(h.subscription_date).toLocaleDateString('fr-FR', {
+                                    month: 'long',
+                                    year: 'numeric',
+                                  })
+                                : '—'}
+                            </span>
+                            {isDuplicate && (
+                              <Tooltip title="Plusieurs paiements liés au même abonnement">
+                                <WarningAmberIcon fontSize="small" sx={{ color: 'warning.main' }} />
+                              </Tooltip>
+                            )}
+                          </Stack>
+                        }
+                        secondary={
+                          h.paid_at
+                            ? `Payé le ${new Date(h.paid_at).toLocaleString('fr-FR')}`
+                            : '—'
+                        }
+                      />
+                    </ListItem>
+                    {i < selectedMember.records.length - 1 && <Divider component="li" />}
+                  </Box>
+                );
+              })}
+              {(!selectedMember?.records || selectedMember.records.length === 0) && (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                  Aucun paiement enregistré.
+                </Typography>
+              )}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setHistoryOpen(false)} variant="outlined" fullWidth>Fermer</Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={toast.open}

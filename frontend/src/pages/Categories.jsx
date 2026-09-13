@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent, Stack, Button, IconButton, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
-  InputAdornment, Snackbar, Alert, Chip, Switch, Tooltip,
+  InputAdornment, Snackbar, Alert, Chip, Switch, Tooltip, FormControlLabel,
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import FitnessCenterRoundedIcon from '@mui/icons-material/FitnessCenterRounded';
@@ -17,6 +17,7 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import PaidRoundedIcon from '@mui/icons-material/PaidRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import LocalOfferRoundedIcon from '@mui/icons-material/LocalOfferRounded';
 import * as Yup from 'yup';
 import { useFormik } from 'formik';
 import { Axios } from '../Api/Api';
@@ -35,6 +36,44 @@ const validationSchema = Yup.object({
     .max(10000, 'Le prix est trop élevé'),
 
   icon: Yup.string().required('Veuillez sélectionner une icône'),
+
+  has_offer: Yup.boolean(),
+
+  offerPrice3Months: Yup.number()
+    .typeError('Le prix doit être un nombre')
+    .when('has_offer', {
+      is: true,
+      then: (schema) =>
+        schema
+          .required('Le prix pour 3 mois est obligatoire')
+          .positive('Le prix doit être supérieur à 0')
+          .max(30000, 'Le prix est trop élevé'),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+  offerPrice6Months: Yup.number()
+    .typeError('Le prix doit être un nombre')
+    .when('has_offer', {
+      is: true,
+      then: (schema) =>
+        schema
+          .required('Le prix pour 6 mois est obligatoire')
+          .positive('Le prix doit être supérieur à 0')
+          .max(60000, 'Le prix est trop élevé'),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+  offerPriceYear: Yup.number()
+    .typeError('Le prix doit être un nombre')
+    .when('has_offer', {
+      is: true,
+      then: (schema) =>
+        schema
+          .required('Le prix annuel est obligatoire')
+          .positive('Le prix doit être supérieur à 0')
+          .max(120000, 'Le prix est trop élevé'),
+      otherwise: (schema) => schema.notRequired(),
+    }),
 });
 
 const iconMap = [
@@ -48,7 +87,15 @@ const iconMap = [
 
 const colorOptions = ['#D4AF37', '#EF5A6F', '#5AA9E6', '#3ED598', '#F5B85D', '#8E7CC3'];
 
-const emptyValues = { name: '', price: '', icon: '' };
+const emptyValues = {
+  name: '',
+  price: '',
+  icon: '',
+  has_offer: false,
+  offerPrice3Months: '',
+  offerPrice6Months: '',
+  offerPriceYear: '',
+};
 
 export default function Categories() {
   const [categories, setCategories] = useState([]);
@@ -76,7 +123,14 @@ export default function Categories() {
     enableReinitialize: true,
     onSubmit: async (values, { resetForm }) => {
       try {
-        const payload = { ...values, price: Number(values.price) };
+        const payload = {
+          ...values,
+          price: Number(values.price),
+          has_offer: values.has_offer,
+          offerPrice3Months: values.has_offer ? Number(values.offerPrice3Months) : null,
+          offerPrice6Months: values.has_offer ? Number(values.offerPrice6Months) : null,
+          offerPriceYear: values.has_offer ? Number(values.offerPriceYear) : null,
+        };
 
         if (editingId) {
           await Axios.put(`/category/${editingId}`, payload);
@@ -116,6 +170,10 @@ export default function Categories() {
         name: c.name || '',
         price: c.price ?? '',
         icon: c.icon || '',
+        has_offer: Boolean(c.has_offer),
+        offerPrice3Months: c.offers?.three_month_amount ?? '',
+        offerPrice6Months: c.offers?.six_month_amount ?? '',
+        offerPriceYear: c.offers?.yearly_amount ?? '',
       },
     });
     setOpen(true);
@@ -179,7 +237,7 @@ export default function Categories() {
   return (
     <Box>
       <Stack
-        direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
+        direction={{ xs: 'column', sm: 'row' }} style={{justifyContent:"space-between"}}  spacing={2} sx={{ mb: 4 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Catégories</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -252,6 +310,29 @@ export default function Categories() {
                       <Typography variant="caption" color="text.secondary">DT/mois</Typography>
                     </Stack>
                   </Stack>
+
+                  {c.has_offer && (
+                    <Stack direction="row" spacing={0.75} flexWrap="wrap" sx={{ mt: 1, gap: 0.75 }}>
+                      <Chip
+                        size="small"
+                        icon={<LocalOfferRoundedIcon fontSize="small" />}
+                        label={`3 mois : ${c.offers.three_month_amount} DT`}
+                        sx={{ bgcolor: `${color}18`, color }}
+                      />
+                      <Chip
+                        size="small"
+                        icon={<LocalOfferRoundedIcon fontSize="small" />}
+                        label={`6 mois : ${c.offers.six_month_amount} DT`}
+                        sx={{ bgcolor: `${color}18`, color }}
+                      />
+                      <Chip
+                        size="small"
+                        icon={<LocalOfferRoundedIcon fontSize="small" />}
+                        label={`1 an : ${c.offers.yearly_amount} DT`}
+                        sx={{ bgcolor: `${color}18`, color }}
+                      />
+                    </Stack>
+                  )}
 
                   <Divider sx={{ my: 2 }} />
 
@@ -338,6 +419,73 @@ export default function Categories() {
                   );
                 })}
               </TextField>
+
+              <Divider />
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formik.values.has_offer}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      formik.setFieldValue('has_offer', checked);
+                      if (!checked) {
+                        // clear offer fields + their errors when toggled off
+                        formik.setFieldValue('offerPrice3Months', '');
+                        formik.setFieldValue('offerPrice6Months', '');
+                        formik.setFieldValue('offerPriceYear', '');
+                      }
+                    }}
+                  />
+                }
+                label={
+                  <Stack direction="row" alignItems="center" spacing={0.75}>
+                    <LocalOfferRoundedIcon fontSize="small" sx={{ color: 'primary.main' }} />
+                    <Typography variant="body2" fontWeight={600}>Cette catégorie a une offre</Typography>
+                  </Stack>
+                }
+              />
+
+              {formik.values.has_offer && (
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="Prix pour 3 mois"
+                    type="number"
+                    name="offerPrice3Months"
+                    value={formik.values.offerPrice3Months}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    error={formik.touched.offerPrice3Months && Boolean(formik.errors.offerPrice3Months)}
+                    helperText={formik.touched.offerPrice3Months && formik.errors.offerPrice3Months}
+                    InputProps={{ endAdornment: <InputAdornment position="end">DT</InputAdornment> }}
+                  />
+                  <TextField
+                    fullWidth
+                    label="Prix pour 6 mois"
+                    type="number"
+                    name="offerPrice6Months"
+                    value={formik.values.offerPrice6Months}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    error={formik.touched.offerPrice6Months && Boolean(formik.errors.offerPrice6Months)}
+                    helperText={formik.touched.offerPrice6Months && formik.errors.offerPrice6Months}
+                    InputProps={{ endAdornment: <InputAdornment position="end">DT</InputAdornment> }}
+                  />
+                  <TextField
+                    fullWidth
+                    label="Prix pour 1 an"
+                    type="number"
+                    name="offerPriceYear"
+                    value={formik.values.offerPriceYear}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    error={formik.touched.offerPriceYear && Boolean(formik.errors.offerPriceYear)}
+                    helperText={formik.touched.offerPriceYear && formik.errors.offerPriceYear}
+                    InputProps={{ endAdornment: <InputAdornment position="end">DT</InputAdornment> }}
+                  />
+                </Stack>
+              )}
             </Stack>
           </DialogContent>
 

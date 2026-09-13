@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon server.js",
-    "admin": "node ./seeders/admin.js"
+    "admin": "node ./seeders/admin.js",
+    "fix": "node ./seeders/fix.js"
+
   },
   "author": "kais taha",
   "license": "ISC",

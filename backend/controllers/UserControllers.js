@@ -20,59 +20,80 @@ exports.AddMember = [
         try {
             const user_id = req.userId;
             const user = await User.findByPk(user_id);
-            const {
-                name,
-                phone,
-                category_id,
-                memberType,          
-                joinDate,            
-                isPaidCurrentMonth,   
-            } = req.body;
+           const {
+    name,
+    phone,
+    category_id,
+    memberType,
+    joinDate,
+    isPaidCurrentMonth,
+    offer_duration
+} = req.body;
 
-            const category = await Category.findByPk(category_id);
-            if (!category) {
-                return res.status(404).json({ message: "category not found" });
-            }
+const category = await Category.findByPk(category_id);
+if (!category) {
+    return res.status(404).json({ message: "category not found" });
+}
 
-            const isOldMember = memberType === "ancien";
+const isOldMember = memberType === "ancien";
+const memberJoinDate = isOldMember ? joinDate : new Date().toISOString().split('T')[0];
 
-            // If it's an old member with a join date, backdate createdAt
-            const member = await Member.create({
-                name,
-                phone,
-                category_id,
-                ...(isOldMember && joinDate ? { createdAt: new Date(joinDate) } : {}),
-            });
+const member = await Member.create({
+    name,
+    phone,
+    category_id,
+    joined_at: memberJoinDate,
+});
 
-            let subscription;
-            let payment = null;
+const INTERVAL_MONTHS = {
+    "monthly": 1,
+    "three_month": 3,
+    "six_month": 6,
+    "yearly": 12,
+};
 
-            if (isOldMember) {
-               
-                subscription = await Subscription.create({
-                    amount: category.price,
-                    member_id: member.id,
-                    status: isPaidCurrentMonth ? "payé" : "non payé",
-                });
+function addMonths(dateStr, months) {
+    const d = new Date(dateStr);
+    d.setMonth(d.getMonth() + months);
+    return d;
+}
 
-                if (isPaidCurrentMonth) {
-                    payment = await Payment.create({
-                        amount: category.price,
-                        subscription_id: subscription.id,
-                    });
-                }
-            } else {
-                // New member: keep the original behaviour — subscription +
-                // payment created immediately
-                subscription = await Subscription.create({
-                    amount: category.price,
-                    member_id: member.id,
-                });
-                payment = await Payment.create({
-                    amount: category.price,
-                    subscription_id: subscription.id,
-                });
-            }
+const paymentType = offer_duration || "monthly";
+const nextPayment =
+    paymentType === "yearly"
+        ? addMonths(memberJoinDate, 12)
+        : addMonths(memberJoinDate, INTERVAL_MONTHS[paymentType] || 1);
+
+let subscription;
+let payment = null;
+
+if (isOldMember) {
+    subscription = await Subscription.create({
+        amount: category.price,
+        member_id: member.id,
+        status: isPaidCurrentMonth ? "payé" : "non payé",
+        payment_type: paymentType,
+        next_payment_at: nextPayment,
+    });
+
+    if (isPaidCurrentMonth) {
+        payment = await Payment.create({
+            amount: category.price,
+            subscription_id: subscription.id,
+        });
+    }
+} else {
+    subscription = await Subscription.create({
+        amount: category.price,
+        member_id: member.id,
+        payment_type: paymentType,
+        next_payment_at: nextPayment,
+    });
+    payment = await Payment.create({
+        amount: category.price,
+        subscription_id: subscription.id,
+    });
+}
 
             await ActivityLog.create({
                 action: "create",
@@ -180,9 +201,6 @@ exports.GetUsers = async (req,res) => {
         let data = [];
         if(type === "member"){
             data = await Member.findAll({
-                where:{status:{
-                            [Op.ne]:"suspendu"},
-                },
                 include:[
                     {
                         model:Category,
