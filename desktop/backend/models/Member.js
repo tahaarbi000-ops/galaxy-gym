@@ -16,6 +16,9 @@ const Member = sequelize.define("members",{
         type:DataTypes.STRING(8),
         allowNull:false,
     },
+    joined_at:{
+        type:DataTypes.DATEONLY
+    },
     status:{
          type:DataTypes.ENUM("actif","inactif","suspendu"),
         allowNull:true,

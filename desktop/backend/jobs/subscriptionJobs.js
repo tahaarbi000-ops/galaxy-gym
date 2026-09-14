@@ -5,6 +5,13 @@ const ScheduledJobs = require("../models/ScheduledJobs");
 
 const JOB_NAME = "daily-subscription-check";
 
+const INTERVAL_MONTHS = {
+  "monthly": 1,
+  "three_month": 3,
+  "six_month": 6,
+  "yearly": 12,
+};
+
 function todayDateOnly() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -20,21 +27,62 @@ function isSameDay(a, b) {
   );
 }
 
+function addMonths(date, months) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
 /**
- * For every member, if today matches their billing anniversary day
- * (day-of-month of their most recent subscription) and no subscription
- * exists yet for the current month, create one as "non payé".
+ * Parse a DATEONLY value (returned by Postgres/Sequelize as a plain
+ * "YYYY-MM-DD" string) into a LOCAL-timezone midnight Date object —
+ * the same frame todayDateOnly() uses.
+ *
+ * `new Date("2026-10-13")` parses as UTC midnight. Comparing that
+ * directly against a local-midnight `today` (from todayDateOnly())
+ * silently shifts the effective due time by the server's UTC offset:
+ * for UTC+1, local midnight on the 13th is 2026-10-12T23:00Z, which is
+ * BEFORE the UTC-parsed due date of 2026-10-13T00:00Z. That made
+ * `next_payment_at <= today` false for the entire due day and only
+ * true a day later — the job would run on the 13th and do nothing,
+ * then fire a day late on the 14th.
+ *
+ * Extracting the Y/M/D digits directly and building the Date via the
+ * local-time constructor sidesteps the UTC/local mismatch entirely.
+ */
+function parseDateOnly(value) {
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const datePart = String(value).split("T")[0];
+  const [y, m, d] = datePart.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * For every member, walk forward through every subscription cycle that
+ * is already due (next_payment_at <= today) and hasn't been created yet.
+ *
+ * IMPORTANT: each new record is dated on its OWN due date
+ * (cursor.next_payment_at), NOT on "today". The day this job happens to
+ * execute is irrelevant to the record's `date` — if the job is late
+ * (server down, missed a run, etc.) and only picks things up a day (or
+ * several cycles) later, the record still reflects the day it was
+ * actually due, and next_payment_at continues to be computed from that
+ * same due date + interval. This is what keeps `date` and
+ * `next_payment_at` consistent with each other and with the original
+ * schedule, no matter when the job actually runs.
+ *
+ * This also catches up on MULTIPLE missed cycles in one pass (e.g. the
+ * job was down for two billing cycles), instead of only ever creating
+ * one record for "today" and silently skipping earlier missed cycles.
  *
  * Skips the member if:
  *  - the member's status is not "actif"
  *  - the member's category status is not "active"
  */
 async function createDailyPayments() {
-  const today = new Date();
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth();
-  const startOfMonth = new Date(currentYear, currentMonth, 1);
-  const startOfNextMonth = new Date(currentYear, currentMonth + 1, 1);
+  const today = todayDateOnly();
 
   const allSubscriptions = await Subscription.findAll({
     order: [["date", "DESC"]],
@@ -48,8 +96,8 @@ async function createDailyPayments() {
   }
 
   for (const [memberId, lastSub] of latestByMember) {
-    const billingDate = new Date(lastSub.date);
-    if (billingDate.getDate() !== today.getDate()) continue;
+    if (!lastSub.next_payment_at) continue;
+    if (parseDateOnly(lastSub.next_payment_at) > today) continue;
 
     const member = await Member.findByPk(memberId, {
       include: [{ model: Category, as: "category" }],
@@ -59,27 +107,47 @@ async function createDailyPayments() {
     if (member.status !== "actif") continue;
     if (!member.category || member.category.status !== "active") continue;
 
-    const existing = await Subscription.findOne({
-      where: {
-        member_id: memberId,
-        date: { [Op.gte]: startOfMonth, [Op.lt]: startOfNextMonth },
-      },
-    });
-    if (existing) continue;
+    let cursor = lastSub;
 
-    await Subscription.create({
-      member_id: memberId,
-      date: today,
-      amount: lastSub.amount,
-      status: "non payé",
-    });
+    // Walk forward one due cycle at a time until we've caught up to today.
+    // Bounded by how many cycles are actually due — can't run away since
+    // each iteration's due date strictly increases.
+    while (cursor.next_payment_at && parseDateOnly(cursor.next_payment_at) <= today) {
+      const dueDate = parseDateOnly(cursor.next_payment_at);
+
+      const existing = await Subscription.findOne({
+        where: {
+          member_id: memberId,
+          date: dueDate,
+        },
+      });
+
+      if (existing) {
+        // Already created for this due date (e.g. a previous run got this
+        // far but crashed before finishing later cycles) — move on to the
+        // next cycle using this record as the new anchor.
+        cursor = existing;
+        continue;
+      }
+
+      const intervalMonths = INTERVAL_MONTHS[cursor.payment_type] || 1;
+
+      cursor = await Subscription.create({
+        member_id: memberId,
+        date: dueDate,
+        amount: cursor.amount,
+        payment_type: cursor.payment_type,
+        status: "non payé",
+        next_payment_at: addMonths(dueDate, intervalMonths),
+      });
+    }
   }
 }
 
 /**
- * "non payé" -> "en retard" once the due date has passed within the
- * SAME billing cycle. This only covers the current month's lateness,
- * not debt carried over from earlier months (that's markArrears below).
+ * "non payé" -> "en retard" as soon as the record is more than a day
+ * old and still unpaid. This flags lateness within the CURRENT cycle,
+ * before it's old enough to count as carried-over arrears.
  */
 async function updateLateMembers() {
   const startOfToday = new Date();
@@ -99,27 +167,28 @@ async function updateLateMembers() {
 }
 
 /**
- * "non payé" / "en retard" -> "Arriéré" once the unpaid record belongs
- * to a month BEFORE the current one. At that point it's no longer
- * "late this cycle" — it's debt the member is carrying forward.
+ * "non payé" / "en retard" -> "arriéré" once the record's OWN
+ * next_payment_at has passed. That means a whole new cycle for that
+ * member has started (regardless of whether their plan is monthly,
+ * three_month, six_month, or yearly) while this one was still unpaid —
+ * so it's no longer "late this cycle", it's debt carried forward.
  *
  * IMPORTANT: this must run AFTER createDailyPayments() and
  * updateLateMembers() in the same pass, so a record has already had
- * the chance to become "en retard" for its own month before we check
- * whether it's now stale relative to a NEW month that just started.
+ * the chance to become "en retard" for its own cycle before we check
+ * whether it's now stale relative to the next one.
  *
- * Runs every day (not just on billing anniversaries) because arrears
- * become visible the moment the calendar rolls into a new month —
- * independent of any individual member's billing date.
+ * Runs every day (not just on billing anniversaries) because a given
+ * member's next_payment_at can fall on any day, independent of when
+ * this job happens to check.
  */
 async function markArrears() {
-  const today = new Date();
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const today = todayDateOnly();
 
   const pastUnpaid = await Subscription.findAll({
     where: {
       status: { [Op.in]: ["non payé", "en retard"] },
-      date: { [Op.lt]: startOfMonth },
+      next_payment_at: { [Op.lte]: today },
     },
   });
 
@@ -141,9 +210,9 @@ async function runDailyJobsIfNeeded() {
     }
 
     console.log(`Running ${JOB_NAME}...`);
-    // Order matters: create this month's record first, flag current-month
-    // lateness second, THEN roll anything still unpaid from before this
-    // month into Arriéré.
+    // Order matters: create this cycle's record first, flag current-cycle
+    // lateness second, THEN roll anything still unpaid whose next_payment_at
+    // has already passed into arriéré.
     await createDailyPayments();
     await updateLateMembers();
     await markArrears();

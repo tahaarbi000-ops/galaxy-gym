@@ -1,5 +1,6 @@
 const Category = require("./Category");
 const Member = require("./Member");
+const Offer = require("./Offer");
 const Payment = require("./Payment");
 const Subscription = require("./Subscription");
 const Trainer = require("./Trainer");
@@ -24,6 +25,16 @@ Member.belongsTo(Category,{
     as:"category"
 })
 
+Category.hasOne(Offer,{
+    foreignKey:"category_id",
+    as:"offers"
+})
+
+Offer.belongsTo(Category,{
+    foreignKey:"category_id",
+    as:"categoryOffer"
+})
+
 Category.hasOne(Trainer,{
     foreignKey:"category_id",
     as:"trainerCategory"
@@ -43,4 +54,4 @@ Payment.belongsTo(Subscription, {
     as: "subscription" 
 });
 
-module.exports = {Category,Subscription,Member,Trainer,Payment}
+module.exports = {Category,Subscription,Member,Trainer,Payment,Offer}

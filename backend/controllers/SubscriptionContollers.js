@@ -18,6 +18,11 @@ exports.GetSubscription = async (req, res) => {
         {
           model: Member,
           as: "member",
+          where:{
+            status: {
+                    [Op.ne]: "suspendu"
+                }
+          },
           attributes: ["id", "name"],
           include: [
             {

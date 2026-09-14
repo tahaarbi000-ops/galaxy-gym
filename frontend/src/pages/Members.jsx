@@ -107,9 +107,14 @@ export default function Members() {
     onSubmit: async (values, { resetForm }) => {
       try {
         if (editingId) {
-          // Editing: only send the core fields, old/new logic doesn't apply here
-          const { name, phone, category_id } = values;
-          await Axios.put(`/user/member/${editingId}`, { name, phone, category_id });
+          // Editing: core fields + offer/payment status, so changing the
+          // offer (or correcting the paid state) is actually persisted.
+          const { name, phone, category_id, offer_duration, isPaidCurrentMonth } = values;
+          const payload = { name, phone, category_id, isPaidCurrentMonth };
+          if (offer_duration) {
+            payload.offer_duration = offer_duration;
+          }
+          await Axios.put(`/user/member/${editingId}`, payload);
           setToast({ open: true, message: 'Membre mis à jour avec succès.', severity: 'success' });
         } else {
           // Creating: include memberType info so backend can decide whether
@@ -151,12 +156,22 @@ export default function Members() {
 
   const handleOpenEdit = (member) => {
     setEditingId(member.id);
+
+    // Pre-fill from the member's current subscription so editing doesn't
+    // reset the offer to "none" or the paid status to "non payé".
+    const sub = member.subscription;
+    const currentOfferDuration =
+      sub?.payment_type && sub.payment_type !== 'monthly' ? sub.payment_type : '';
+    const currentlyPaid = sub?.status === 'payé';
+
     formik.resetForm({
       values: {
         ...emptyValues,
         name: member.name || '',
         phone: member.phone || '',
         category_id: member.category?.id || member.category_id || '',
+        offer_duration: currentOfferDuration,
+        isPaidCurrentMonth: currentlyPaid,
       },
     });
     setOpen(true);
@@ -573,7 +588,7 @@ export default function Members() {
               )}
 
               {/* Old/new member toggle — creation only */}
-              {!editingId && (
+              {!editingId ? (
                 <>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 600 }}>
@@ -628,6 +643,21 @@ export default function Members() {
                     </>
                   )}
                 </>
+              ) : (
+                // Editing: show current paid status so it isn't silently
+                // overwritten to "non payé" when only the offer changes.
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formik.values.isPaidCurrentMonth}
+                      onChange={(e) =>
+                        formik.setFieldValue('isPaidCurrentMonth', e.target.checked)
+                      }
+                      color="primary"
+                    />
+                  }
+                  label="Payé pour le mois en cours"
+                />
               )}
             </Stack>
           </DialogContent>
